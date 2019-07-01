@@ -1,7 +1,7 @@
 //******************************************************************************************************
 //  GraphLines.cs - Gbtc
 //
-//  Copyright © 2015, Grid Protection Alliance.  All Rights Reserved.
+//  Copyright © 2019, Grid Protection Alliance.  All Rights Reserved.
 //
 //  Licensed to the Grid Protection Alliance (GPA) under one or more contributor license agreements. See
 //  the NOTICE file distributed with this work for additional information regarding copyright ownership.
@@ -18,6 +18,8 @@
 //  ----------------------------------------------------------------------------------------------------
 //  11/29/2012 - J. Ritchie Carroll
 //       Generated original version of source code.
+//  06/23/2019 - J. Ritchie Carroll
+//       Updated code to work with STTP API
 //
 //******************************************************************************************************
 
@@ -25,7 +27,9 @@ using sttp;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using UnityEngine;
@@ -34,6 +38,7 @@ using Vectrosity;
 // ReSharper disable once CheckNamespace
 // ReSharper disable UnusedMember.Local
 // ReSharper disable IntroduceOptionalParameters.Local
+// ReSharper disable RedundantCast.0
 public class GraphLines : MonoBehaviour
 {
     #region [ Members ]
@@ -178,6 +183,8 @@ public class GraphLines : MonoBehaviour
 
         public Guid ID { get; }
 
+        // ReSharper disable once UnusedAutoPropertyAccessor.Local
+        // ReSharper disable once MemberCanBePrivate.Local
         public int Index { get; }
 
         public Color VectorColor
@@ -214,7 +221,6 @@ public class GraphLines : MonoBehaviour
     // Creates a fixed 3D line using Vectrosity asset to draw line for legend
     private class LegendLine : ILine
     {
-        private readonly Guid m_id;
         private VectorLine m_vector;
 
         public LegendLine(GraphLines parent, Guid id, int index, Color color)
@@ -222,7 +228,7 @@ public class GraphLines : MonoBehaviour
             Transform transform = parent.m_legendMesh.transform;
             Vector3 position = transform.position;
 
-            m_id = id;
+            ID = id;
             m_vector = new VectorLine("LegendLine" + index, new List<Vector3>(2), parent.m_lineMaterial, parent.m_lineWidth, LineType.Discrete);
             m_vector.color = color;
             m_vector.drawTransform = transform;
@@ -238,7 +244,7 @@ public class GraphLines : MonoBehaviour
             m_vector.points3[1] = point2;
         }
 
-        public Guid ID => m_id;
+        public Guid ID { get; }
 
         public void Stop()
         {
@@ -257,9 +263,9 @@ public class GraphLines : MonoBehaviour
 
         public MetadataFormatProvider(MeasurementMetadata metadata) => m_metadata = metadata;
 
-        public string ToString(string format, IFormatProvider provider)
+        public string ToString(string propertyName, IFormatProvider provider)
         {
-            return typeof(MeasurementMetadata).GetProperty(format)?.GetValue(m_metadata).ToString() ?? "<" + format + ">";
+            return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? "<" + propertyName + ">";
         }
     }
 
@@ -269,11 +275,9 @@ public class GraphLines : MonoBehaviour
     private const int ControlWindowMinimizedHeight = 20;
 
     // Fields
-    private ConcurrentDictionary<SignalKind, Scale> m_scales;
+    private ConcurrentDictionary<string, Scale> m_scales;
     private ConcurrentDictionary<Guid, DataLine> m_dataLines;    
-    internal ConcurrentQueue<IList<Measurement>> m_dataQueue;
-    internal MeasurementMetadataMap m_measurementMetadata;
-    internal HashSet<Guid> m_subscribedMeasurementIDs;
+    private ConcurrentQueue<IList<Measurement>> m_dataQueue;
     private DataSubscriber m_subscriber;
     private List<LegendLine> m_legendLines;
     private string[] m_statusText;
@@ -290,8 +294,9 @@ public class GraphLines : MonoBehaviour
     private int m_lastScreenWidth = -1;
     private string m_startTime = "*-5M";
     private string m_stopTime = "*";
+    private int m_maxSignals = 30;
     private int m_processInterval = 33;
-    private int m_lastProcessInterval = 0;
+    private int m_lastProcessInterval;
     private bool m_historicalSubscription;
     private Vector2 m_scrollPosition;
     private int m_guiSize = 1;
@@ -299,7 +304,7 @@ public class GraphLines : MonoBehaviour
     // Public fields exposed to Unity UI interface
     public string m_title = "STTP Connection Tester";
     public string m_connectionString = "server=localhost:7165;";
-    public string m_filterExpression = "FILTER ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
+    public string m_filterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
     public Texture m_lineMaterial;
     public int m_lineWidth = 4;
     public float m_lineDepthOffset = 0.75F;
@@ -335,13 +340,14 @@ public class GraphLines : MonoBehaviour
         m_connectionString = iniFile["Settings", "ConnectionString", m_connectionString];
         m_filterExpression = iniFile["Settings", "FilterExpression", m_filterExpression];
         m_lineWidth = int.Parse(iniFile["Settings", "LineWidth", m_lineWidth.ToString()]);
-        m_lineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", m_lineDepthOffset.ToString()]);
+        m_lineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", m_lineDepthOffset.ToString(CultureInfo.InvariantCulture)]);
         m_pointsInLine = int.Parse(iniFile["Settings", "PointsInLine", m_pointsInLine.ToString()]);
         m_legendFormat = iniFile["Settings", "LegendFormat", m_legendFormat];
         m_statusRows = int.Parse(iniFile["Settings", "StatusRows", m_statusRows.ToString()]);
-        m_statusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", m_statusDisplayInterval.ToString()]);
+        m_statusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", m_statusDisplayInterval.ToString(CultureInfo.InvariantCulture)]);
         m_startTime = iniFile["Settings", "StartTime", m_startTime];
         m_stopTime = iniFile["Settings", "StopTime", m_stopTime];
+        m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", m_maxSignals.ToString()]);
 
         // Attempt to save INI file updates (e.g., to restore any missing settings)
         try
@@ -357,20 +363,16 @@ public class GraphLines : MonoBehaviour
         m_mouseOrbitScript = GetComponent<MouseOrbit>();
 
         // Create line dictionary and data queue
-        m_scales = new ConcurrentDictionary<SignalKind, Scale>();
+        m_scales = new ConcurrentDictionary<string, Scale>();
         m_dataLines = new ConcurrentDictionary<Guid, DataLine>();
         m_dataQueue = new ConcurrentQueue<IList<Measurement>>();
-        m_measurementMetadata = new MeasurementMetadataMap();
-        m_subscribedMeasurementIDs = new HashSet<Guid>();
         m_legendLines = new List<LegendLine>();
 
         // Initialize status rows and timer to hide status after a period of no updates
         m_statusText = new string[m_statusRows];
 
         for (int i = 0; i < m_statusRows; i++)
-        {
             m_statusText[i] = "";
-        }
 
         m_hideStatusTimer = new System.Timers.Timer();
         m_hideStatusTimer.AutoReset = false;
@@ -482,7 +484,7 @@ public class GraphLines : MonoBehaviour
             OnScreenResize();
 
         // Nothing to update if we haven't subscribed yet
-        if (!m_subscriber.IsSubscribed())
+        if (!m_subscriber?.Subscribed ?? false)
             return;
 
         // Make sure lines are initialized before trying to draw them
@@ -561,6 +563,14 @@ public class GraphLines : MonoBehaviour
 
     internal void InitializeSubscription(Guid[] subscribedMeasurementIDs)
     {
+        int count = subscribedMeasurementIDs.Length;
+
+        if (count > m_maxSignals)
+        {
+            subscribedMeasurementIDs = subscribedMeasurementIDs.Take(m_maxSignals).ToArray();
+            UpdateStatus($"Reduced {count:N0} subscribed measurements to {m_maxSignals:N0}, configured maximum.");
+        }
+
         // Create a new line for each subscribed measurement, this should be done in
         // advance of updating the legend so the line colors will already be defined
         m_linesInitializedWaitHandle = UIThread.Invoke(CreateDataLines, subscribedMeasurementIDs);
@@ -575,8 +585,14 @@ public class GraphLines : MonoBehaviour
         if ((object)m_statusMesh != null)
             m_statusMesh.UpdateText("");
 
+    #if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+    #else
         Application.Quit();
+    #endif
     }
+
+    internal void EnqueData(IList<Measurement> measurements) => m_dataQueue.Enqueue(measurements);
 
     internal void UpdateStatus(string statusText)
     {
@@ -604,11 +620,8 @@ public class GraphLines : MonoBehaviour
         }
     }
 
-    private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
-    {
-        // Hide status text after a period of no updates
-        m_statusMesh.UpdateText("");
-    }
+    // Hide status text after a period of no updates
+    private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e) => m_statusMesh.UpdateText("");
 
     // Create a new data line for each subscribed measurement
     private void CreateDataLines(object[] args)
@@ -630,22 +643,26 @@ public class GraphLines : MonoBehaviour
 
         foreach (Guid measurementID in subscribedMeasurementIDs)
         {
-            SignalKind signalType = SignalKind.Unknown;
             bool autoShrinkScale = false;
 
-            if (m_subscriber.TryGetMeasurementMetdata(measurementID, out MeasurementMetadata measurementMetadata))
+            if (m_subscriber.TryGetSignalTypeAcronym(measurementID, out string signalType))
             {
-                switch (measurementMetadata.Reference.Kind)
+                switch (signalType)
                 {
-                    case SignalKind.Angle:
-                    case SignalKind.Frequency:
-                    case SignalKind.Analog:
-                    case SignalKind.Calculation:
+                    case "IPHM":
+                    case "VPHM":
+                    case "FREQ":
+                    case "ALOG":
+                    case "CALC":
                         autoShrinkScale = true;
                         break;
                 }
             }
-            
+            else
+            {
+                signalType = "UNKNOWN";
+            }
+
             line = new DataLine(this, measurementID, m_dataLines.Count);
             scale = m_scales.GetOrAdd(signalType, type => new Scale(m_graphScale, autoShrinkScale));
             scale.Add(line);
@@ -673,7 +690,7 @@ public class GraphLines : MonoBehaviour
         foreach (Guid measurementID in subscribedMeasurementIDs)
         {
             // Lookup metadata record where SignalID column is our measurement ID
-            if (m_measurementMetadata.TryGetValue(measurementID, out MeasurementMetadata metadata))
+            if (m_subscriber.TryGetMeasurementMetdata(measurementID, out MeasurementMetadata metadata))
             {
                 // Add formatted metadata label expression to legend text
                 legendText.AppendFormat(m_legendFormat, new MetadataFormatProvider(metadata));
@@ -767,9 +784,8 @@ public class GraphLines : MonoBehaviour
 
         if ((object)m_subscriber != null)
         {
-            UpdateStatus("Terminating current connection...");
-
-            // Dispose of the subscription
+            UpdateStatus("Terminating current connection...");        
+            m_subscriber.Disconnect();
             m_subscriber.Dispose();
         }
 
@@ -779,11 +795,12 @@ public class GraphLines : MonoBehaviour
     // Subscribes or resubscribes to real-time or historical stream using current filter expression
     internal void InitiateSubscription(bool historical = false)
     {
-        if (m_subscriber.IsSubscribed() || m_historicalSubscription)
+        if (m_subscriber.Subscribed || m_historicalSubscription)
             ClearSubscription();
 
         m_historicalSubscription = historical;
         m_subscriber.FilterExpression = m_filterExpression;
+        m_lastProcessInterval = 0;
 
         if (historical)
         {
@@ -937,9 +954,9 @@ public class GraphLines : MonoBehaviour
         m_processInterval = (int)GUILayout.HorizontalSlider((float)m_processInterval, 0.0F, 300.0F, sliderStyle, sliderThumbStyle, GUILayout.Width(125 * widthScalar));
 
         // Dynamically update processing interval when user moves slider control
-        if ((object)m_subscriber != null  && m_subscriber.IsSubscribed() && m_processInterval != m_lastProcessInterval)
+        if ((m_subscriber?.Subscribed ?? false) && m_processInterval != m_lastProcessInterval)
         {
-            bool showMessage = (m_lastProcessInterval != -1);
+            bool showMessage = m_lastProcessInterval > 0;
             m_lastProcessInterval = m_processInterval;
             m_subscriber.SetHistoricalReplayInterval(m_processInterval);
 

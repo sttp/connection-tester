@@ -23,17 +23,19 @@
 
 using sttp;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
+// ReSharper disable once CheckNamespace
 public class DataSubscriber : SubscriberInstance
 {
     private readonly GraphLines m_parent;
-    private ulong m_processCount;
-
-    private static readonly object s_consoleLock = new object();
+    private readonly ConcurrentDictionary<Guid, string> m_signalTypeAcronyms = new ConcurrentDictionary<Guid, string>();
 
     public DataSubscriber(GraphLines parent) => m_parent = parent;
+
+    public bool TryGetSignalTypeAcronym(Guid signalID, out string signalTypeAcronym) => m_signalTypeAcronyms.TryGetValue(signalID, out signalTypeAcronym);
 
     protected override void StatusMessage(string message)
     {
@@ -48,11 +50,6 @@ public class DataSubscriber : SubscriberInstance
     protected override void DataStartTime(DateTime startTime)
     {
         StatusMessage($"Received first measurement at timestamp {startTime:yyyy-MM-dd HH:mm:ss.fff}");
-
-        // At the moment we first receive data we know that we've successfully subscribed,
-        // so we go ahead an cache list of measurement signal IDs (we may not know what
-        // these are in advance if we used a FILTER expression to subscribe to points)
-        GetParsedMeasurementMetadata(m_parent.m_measurementMetadata);        
     }
 
     protected override void ReceivedMetadata(ByteBuffer payload)
@@ -66,25 +63,53 @@ public class DataSubscriber : SubscriberInstance
         StatusMessage("Metadata successfully parsed.");
     }
 
+    public override void SubscriptionUpdated(SignalIndexCache signalIndexCache)
+    {
+        MeasurementMetadataMap measurementMetadata = new MeasurementMetadataMap();
+        DeviceMetadataMap deviceMetadata = new DeviceMetadataMap();
+
+        GetParsedMeasurementMetadata(measurementMetadata);
+        GetParsedDeviceMetadata(deviceMetadata);
+
+        HashSet<Guid> signalIDs = new HashSet<Guid>(signalIndexCache.GetSignalIDs());
+        Dictionary<string, Dictionary<int, PhasorReference>> devicePhasors = new Dictionary<string, Dictionary<int, PhasorReference>>();
+
+        foreach (MeasurementMetadata measurement in measurementMetadata.Values)
+        {
+            if (signalIDs.Contains(measurement.SignalID) && deviceMetadata.TryGetValue(measurement.DeviceAcronym, out DeviceMetadata device))
+            {
+                if (!devicePhasors.TryGetValue(device.Acronym, out Dictionary<int, PhasorReference> phasors))
+                {
+                    phasors = new Dictionary<int, PhasorReference>();
+
+                    foreach (PhasorReference phasor in device.Phasors)
+                        phasors[phasor.Phasor.SourceIndex] = phasor;
+
+                    devicePhasors[device.Acronym] = phasors;
+                }
+
+                SignalKind signalKind = measurement.Reference.Kind;
+
+                if (phasors.TryGetValue(measurement.PhasorSourceIndex, out PhasorReference phasorReference))
+                    m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind, phasorReference.Phasor.Type[0]);
+                else
+                    m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind);
+            }
+        }
+
+        m_parent.InitializeSubscription(signalIDs.ToArray());
+    }
+
     // Since new measurements will continue to arrive and be queued even when screen is not visible, it
     // is important that unity application be set to "run in background" to avoid running out of memory
     public override unsafe void ReceivedNewMeasurements(Measurement* measurements, int length)
     {
         List<Measurement> queue = new List<Measurement>(length);
 
-        int count = m_parent.m_subscribedMeasurementIDs.Count;
-
         for (int i = 0; i < length; i++)
-        {
-            Measurement measurement = measurements[i];
-            m_parent.m_subscribedMeasurementIDs.Add(measurement.GetSignalID());
             queue.Add(measurements[i]);
-        }
 
-        if (count < m_parent.m_subscribedMeasurementIDs.Count)
-            m_parent.InitializeSubscription(m_parent.m_subscribedMeasurementIDs.ToArray());
-
-        m_parent.m_dataQueue.Enqueue(queue);
+        m_parent.EnqueData(queue);
     }
 
     protected override void ConfigurationChanged()
@@ -108,8 +133,6 @@ public class DataSubscriber : SubscriberInstance
     protected override void ConnectionTerminated()
     {
         StatusMessage("Connection terminated.");
-
-        if (IsSubscribed())
-            m_parent.ClearSubscription();
+        m_parent.ClearSubscription();
     }
 }
