@@ -41,6 +41,23 @@ using Vectrosity;
 // ReSharper disable RedundantCast.0
 public class GraphLines : MonoBehaviour
 {
+    #region [ Static ]
+
+    static GraphLines()
+    {
+#if !UNITY_EDITOR
+        // Setup path at run-time to load proper version of native sttp.net.lib.dll
+        string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
+
+        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins";
+
+        if (!currentPath?.Contains(dllPath) ?? false)
+            Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
+#endif
+    }
+
+    #endregion
+
     #region [ Members ]
 
     // Nested Types
@@ -260,11 +277,19 @@ public class GraphLines : MonoBehaviour
     private class MetadataFormatProvider : IFormattable
     {
         private readonly MeasurementMetadata m_metadata;
+        private readonly string m_signalTypeAcronym;
 
-        public MetadataFormatProvider(MeasurementMetadata metadata) => m_metadata = metadata;
+        public MetadataFormatProvider(MeasurementMetadata metadata, string signalTypeAcronym)
+        {
+            m_metadata = metadata;
+            m_signalTypeAcronym = signalTypeAcronym;
+        }
 
         public string ToString(string propertyName, IFormatProvider provider)
         {
+            if (propertyName.Equals("SignalTypeAcronym", StringComparison.OrdinalIgnoreCase))
+                return m_signalTypeAcronym;
+
             return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? "<" + propertyName + ">";
         }
     }
@@ -289,17 +314,19 @@ public class GraphLines : MonoBehaviour
     private Texture2D m_controlWindowTexture;
     private Rect m_controlWindowActiveLocation;
     private Rect m_controlWindowMinimizedLocation;
-    private bool m_controlWindowMinimized = true;
+    private bool m_controlWindowMinimized;
     private int m_lastScreenHeight = -1;
     private int m_lastScreenWidth = -1;
     private string m_startTime = "*-5M";
     private string m_stopTime = "*";
     private int m_maxSignals = 30;
+    private bool m_autoInitiateConnection;
     private int m_processInterval = 33;
     private int m_lastProcessInterval;
     private bool m_historicalSubscription;
     private Vector2 m_scrollPosition;
     private int m_guiSize = 1;
+    private bool m_shuttingDown;
 
     // Public fields exposed to Unity UI interface
     public string m_title = "STTP Connection Tester";
@@ -316,7 +343,7 @@ public class GraphLines : MonoBehaviour
     public TextMesh m_statusMesh;
     public int m_statusRows = 4;
     public double m_statusDisplayInterval = 10000.0D;
-    public string m_legendFormat = "{0:ID}: {0:Description}";
+    public string m_legendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
 
     #endregion
 
@@ -348,6 +375,8 @@ public class GraphLines : MonoBehaviour
         m_startTime = iniFile["Settings", "StartTime", m_startTime];
         m_stopTime = iniFile["Settings", "StopTime", m_stopTime];
         m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", m_maxSignals.ToString()]);
+        m_autoInitiateConnection = bool.Parse(iniFile["Settings", "AutoInitiateConnection", m_autoInitiateConnection.ToString()]);
+        m_controlWindowMinimized = m_autoInitiateConnection;
 
         // Attempt to save INI file updates (e.g., to restore any missing settings)
         try
@@ -433,7 +462,8 @@ public class GraphLines : MonoBehaviour
                 m_statusMesh = statusObject.GetComponent<TextMesh>();
         }
 
-        InitiateConnection();
+        if (m_autoInitiateConnection)
+            InitiateConnection();
     }
 
     protected void OnDestroy()
@@ -451,6 +481,8 @@ public class GraphLines : MonoBehaviour
 
     protected void OnApplicationQuit()
     {
+        m_shuttingDown = true;
+
         // Make sure destroy gets called
         OnDestroy();
 
@@ -621,7 +653,11 @@ public class GraphLines : MonoBehaviour
     }
 
     // Hide status text after a period of no updates
-    private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e) => m_statusMesh.UpdateText("");
+    private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (!m_shuttingDown)
+            m_statusMesh?.UpdateText("");
+    }
 
     // Create a new data line for each subscribed measurement
     private void CreateDataLines(object[] args)
@@ -685,15 +721,19 @@ public class GraphLines : MonoBehaviour
 
         StringBuilder legendText = new StringBuilder();
 
-
         // Go through each subscribed measurement ID and look up its associated metadata
         foreach (Guid measurementID in subscribedMeasurementIDs)
         {
             // Lookup metadata record where SignalID column is our measurement ID
             if (m_subscriber.TryGetMeasurementMetdata(measurementID, out MeasurementMetadata metadata))
             {
+                m_subscriber.TryGetSignalTypeAcronym(measurementID, out string signalType);
+
+                if (string.IsNullOrWhiteSpace(signalType))
+                    signalType = "UNST"; // Unknown signal type
+
                 // Add formatted metadata label expression to legend text
-                legendText.AppendFormat(m_legendFormat, new MetadataFormatProvider(metadata));
+                legendText.AppendFormat(m_legendFormat, new MetadataFormatProvider(metadata, signalType));
                 legendText.AppendLine();
             }
         }
@@ -808,6 +848,11 @@ public class GraphLines : MonoBehaviour
             m_subscriber.SetHistoricalReplayInterval(m_processInterval);
             UpdateStatus($"*** Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed ***");
         }        
+    }
+
+    internal void ConnectionEstablished()
+    {
+        m_controlWindowMinimized = true;
     }
 
     // Clears an existing subscription
@@ -956,12 +1001,12 @@ public class GraphLines : MonoBehaviour
         // Dynamically update processing interval when user moves slider control
         if ((m_subscriber?.Subscribed ?? false) && m_processInterval != m_lastProcessInterval)
         {
-            bool showMessage = m_lastProcessInterval > 0;
-            m_lastProcessInterval = m_processInterval;
-            m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-
-            if (showMessage)
+            if (m_lastProcessInterval > 0)
+            {
+                m_lastProcessInterval = m_processInterval;
+                m_subscriber.SetHistoricalReplayInterval(m_processInterval);
                 UpdateStatus($"*** Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} ***");
+            }
         }
 
         // Resubscribe with historical replay parameters

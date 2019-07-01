@@ -128,6 +128,7 @@ public class DataSubscriber : SubscriberInstance
     protected override void ConnectionEstablished()
     {
         StatusMessage("Connection established.");
+        m_parent.ConnectionEstablished();
     }
 
     protected override void ConnectionTerminated()

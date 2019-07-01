@@ -1,5 +1,5 @@
 ﻿//******************************************************************************************************
-//  EnvPathUpdate.cs - Gbtc
+//  sttp_editor.cs - Gbtc
 //
 //  Copyright © 2019, Grid Protection Alliance.  All Rights Reserved.
 //
@@ -28,17 +28,17 @@ using UnityEngine;
 
 // ReSharper disable once CheckNamespace
 [InitializeOnLoad]
-public class EnvPathUpdate
+public class sttp_editor
 {
-    static EnvPathUpdate()
+    static sttp_editor()
     {
         // Setup path to load proper version of native sttp.net.lib.dll
         string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
 
 #if UNITY_EDITOR_32
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86";
+        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}sttp.net{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86";
 #elif UNITY_EDITOR_64
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86_64";
+        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}sttp.net{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86_64";
 #else // Player
         string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins";
 #endif
