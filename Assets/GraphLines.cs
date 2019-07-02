@@ -43,9 +43,11 @@ public class GraphLines : MonoBehaviour
 {
     #region [ Static ]
 
+    private static Action s_editorExitingPlayMode;
+
     static GraphLines()
     {
-#if !UNITY_EDITOR
+    #if !UNITY_EDITOR
         // Setup path at run-time to load proper version of native sttp.net.lib.dll
         string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
 
@@ -53,8 +55,10 @@ public class GraphLines : MonoBehaviour
 
         if (!currentPath?.Contains(dllPath) ?? false)
             Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
-#endif
+    #endif
     }
+
+    public static void EditorExitingPlayMode() => s_editorExitingPlayMode?.Invoke();
 
     #endregion
 
@@ -300,10 +304,10 @@ public class GraphLines : MonoBehaviour
     private const int ControlWindowMinimizedHeight = 20;
 
     // Fields
+    private readonly DataSubscriber m_subscriber;
     private ConcurrentDictionary<string, Scale> m_scales;
     private ConcurrentDictionary<Guid, DataLine> m_dataLines;    
     private ConcurrentQueue<IList<Measurement>> m_dataQueue;
-    private DataSubscriber m_subscriber;
     private List<LegendLine> m_legendLines;
     private string[] m_statusText;
     private System.Timers.Timer m_hideStatusTimer;
@@ -344,6 +348,15 @@ public class GraphLines : MonoBehaviour
     public int m_statusRows = 4;
     public double m_statusDisplayInterval = 10000.0D;
     public string m_legendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
+
+    public GraphLines()
+    {
+        // Create a new data subscriber
+        m_subscriber = new DataSubscriber(this);
+
+        // Setup trigger to detect and handle exiting play mode
+        s_editorExitingPlayMode = OnApplicationQuit;
+    }
 
     #endregion
 
@@ -466,49 +479,6 @@ public class GraphLines : MonoBehaviour
             InitiateConnection();
     }
 
-    protected void OnDestroy()
-    {
-        TerminateConnection();
-
-        if ((object)m_hideStatusTimer != null)
-        {
-            m_hideStatusTimer.Elapsed -= m_hideStatusTimer_Elapsed;
-            m_hideStatusTimer.Dispose();
-        }
-
-        m_hideStatusTimer = null;
-    }
-
-    protected void OnApplicationQuit()
-    {
-        m_shuttingDown = true;
-
-        // Make sure destroy gets called
-        OnDestroy();
-
-        // Load existing INI file settings
-        IniFile iniFile = new IniFile(Application.persistentDataPath + "/" + IniFileName);
-
-        // Apply any user updated settings to INI file. Note that semi-colons are
-        // treated as comments in INI files so we suffix connection string with a
-        // semi-colon since this string can contain valid semi-colons - only the
-        // last one will be treated as a comment prefix and removed at load.
-        iniFile["Settings", "ConnectionString"] = m_connectionString + ";";
-        iniFile["Settings", "FilterExpression"] = m_filterExpression;
-        iniFile["Settings", "StartTime"] = m_startTime;
-        iniFile["Settings", "StopTime"] = m_stopTime;
-
-        // Attempt to save INI file updates
-        try
-        {
-            iniFile.Save();
-        }
-        catch (Exception ex)
-        {
-            Debug.Log("ERROR: " + ex.Message);
-        }
-    }
-
     protected void Update()
     {
         // Check for screen resize
@@ -610,20 +580,6 @@ public class GraphLines : MonoBehaviour
 
     #endregion
 
-    private void EndApplication()
-    {
-        TerminateConnection();
-
-        if ((object)m_statusMesh != null)
-            m_statusMesh.UpdateText("");
-
-    #if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-    #else
-        Application.Quit();
-    #endif
-    }
-
     internal void EnqueData(IList<Measurement> measurements) => m_dataQueue.Enqueue(measurements);
 
     internal void UpdateStatus(string statusText)
@@ -636,6 +592,8 @@ public class GraphLines : MonoBehaviour
             m_statusText[i] = m_statusText[i + 1];
             cumulativeStatusText.Append($"{m_statusText[i]}\r\n");
         }
+
+        statusText = string.Join("\r\n", statusText.GetSegments(85));
 
         // Append newest status text
         m_statusText[m_statusText.Length - 1] = statusText;
@@ -807,29 +765,11 @@ public class GraphLines : MonoBehaviour
 
         UpdateStatus($"Attempting connection to \"{hostname}:{port}\"...");
 
-        // Create a new data subscriber
-        m_subscriber = new DataSubscriber(this);
-
         InitiateSubscription();
 
         // Initialize subscriber
         m_subscriber.Initialize(hostname, port, udpPort);
         m_subscriber.ConnectAsync();
-    }
-
-    // Terminates an existing connection to a data publisher
-    private void TerminateConnection()
-    {
-        ClearSubscription();
-
-        if ((object)m_subscriber != null)
-        {
-            UpdateStatus("Terminating current connection...");        
-            m_subscriber.Disconnect();
-            m_subscriber.Dispose();
-        }
-
-        m_subscriber = null;
     }
 
     // Subscribes or resubscribes to real-time or historical stream using current filter expression
@@ -853,51 +793,6 @@ public class GraphLines : MonoBehaviour
     internal void ConnectionEstablished()
     {
         m_controlWindowMinimized = true;
-    }
-
-    // Clears an existing subscription
-    internal void ClearSubscription()
-    {
-        // Reset subscription state
-        m_linesInitializedWaitHandle = null;
-
-        // Clear out existing scales
-        if ((object)m_scales != null)
-            m_scales.Clear();
-
-        // Erase data lines
-        if ((object)m_dataLines != null)
-        {
-            foreach (DataLine dataLine in m_dataLines.Values)
-                UIThread.Invoke(EraseLine, dataLine);
-
-            m_dataLines.Clear();
-        }
-
-        // Erase legend lines
-        if ((object)m_legendLines != null)
-        {
-            foreach (LegendLine legendLine in m_legendLines)
-                UIThread.Invoke(EraseLine, legendLine);
-
-            m_legendLines.Clear();
-        }
-
-        // Clear legend text
-        m_legendMesh.UpdateText("");
-    }
-
-    private void EraseLine(object[] args)
-    {
-        if ((object)args == null || args.Length < 1)
-            return;
-
-        ILine line = args[0] as ILine;
-
-        if ((object)line == null)
-            return;
-
-        line.Stop();
     }
 
     private void OnScreenResize()
@@ -1031,5 +926,115 @@ public class GraphLines : MonoBehaviour
         GUILayout.EndScrollView();
     }
 
-    #endregion
+    private void EraseLine(object[] args)
+    {
+        if ((object)args == null || args.Length < 1)
+            return;
+
+        ILine line = args[0] as ILine;
+
+        if ((object)line == null)
+            return;
+
+        line.Stop();
+    }
+
+    // Clears an existing subscription
+    internal void ClearSubscription()
+    {
+        // Reset subscription state
+        m_linesInitializedWaitHandle = null;
+
+        // Clear out existing scales
+        if ((object)m_scales != null)
+            m_scales.Clear();
+
+        // Erase data lines
+        if (m_dataLines?.Count > 0)
+        {
+            foreach (DataLine dataLine in m_dataLines.Values)
+                UIThread.Invoke(EraseLine, dataLine);
+
+            m_dataLines.Clear();
+        }
+
+        // Erase legend lines
+        if (m_legendLines?.Count > 0)
+        {
+            foreach (LegendLine legendLine in m_legendLines)
+                UIThread.Invoke(EraseLine, legendLine);
+
+            m_legendLines.Clear();
+        }
+
+        // Clear legend text
+        if (!m_shuttingDown)
+            m_legendMesh?.UpdateText("");
+    }
+
+    // Terminates an existing connection to a data publisher
+    private void TerminateConnection()
+    {
+        ClearSubscription();
+
+        if (m_subscriber?.Connected ?? false)
+            UpdateStatus("Terminating current connection...");
+
+        m_subscriber?.Disconnect();
+    }
+
+    private void EndApplication()
+    {
+        m_shuttingDown = true;
+
+    #if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+    #else
+        Application.Quit();
+    #endif
+    }
+
+    protected void OnDestroy()
+    {
+        m_subscriber.AutoReconnect = false;
+        TerminateConnection();
+
+        if ((object)m_hideStatusTimer != null)
+        {
+            m_hideStatusTimer.Elapsed -= m_hideStatusTimer_Elapsed;
+            m_hideStatusTimer.Dispose();
+        }
+
+        m_hideStatusTimer = null;
+    }
+
+    protected void OnApplicationQuit()
+    {
+        // Make sure destroy gets called
+        OnDestroy();
+
+        // Load existing INI file settings
+        IniFile iniFile = new IniFile(Application.persistentDataPath + "/" + IniFileName);
+
+        // Apply any user updated settings to INI file. Note that semi-colons are
+        // treated as comments in INI files so we suffix connection string with a
+        // semi-colon since this string can contain valid semi-colons - only the
+        // last one will be treated as a comment prefix and removed at load.
+        iniFile["Settings", "ConnectionString"] = m_connectionString + ";";
+        iniFile["Settings", "FilterExpression"] = m_filterExpression;
+        iniFile["Settings", "StartTime"] = m_startTime;
+        iniFile["Settings", "StopTime"] = m_stopTime;
+
+        // Attempt to save INI file updates
+        try
+        {
+            iniFile.Save();
+        }
+        catch (Exception ex)
+        {
+            Debug.Log("ERROR: " + ex.Message);
+        }
+    }
+
+#endregion
 }

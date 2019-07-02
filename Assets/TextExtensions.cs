@@ -238,4 +238,33 @@ public static class TextExtensions
 
         return keyValuePairs;
     }
+
+    /// <summary>
+    /// Turns source string into an array of string segments - each with a set maximum width - for parsing or displaying.
+    /// </summary>
+    /// <param name="value">Input string to break up into segments.</param>
+    /// <param name="segmentSize">Maximum size of returned segment.</param>
+    /// <returns>Array of string segments as parsed from source string.</returns>
+    /// <remarks>Returns a single element array with an empty string if source string is null or empty.</remarks>
+    public static string[] GetSegments(this string value, int segmentSize)
+    {
+        if (segmentSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(segmentSize), "segmentSize must be greater than zero.");
+
+        if (string.IsNullOrEmpty(value))
+            return new[] { "" };
+
+        int totalSegments = (int)Math.Ceiling(value.Length / (double)segmentSize);
+        string[] segments = new string[totalSegments];
+
+        for (int x = 0; x < segments.Length; x++)
+        {
+            if (x * segmentSize + segmentSize >= value.Length)
+                segments[x] = value.Substring(x * segmentSize);
+            else
+                segments[x] = value.Substring(x * segmentSize, segmentSize);
+        }
+
+        return segments;
+    }
 }

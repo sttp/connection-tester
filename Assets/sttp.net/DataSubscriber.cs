@@ -37,6 +37,23 @@ public class DataSubscriber : SubscriberInstance
 
     public bool TryGetSignalTypeAcronym(Guid signalID, out string signalTypeAcronym) => m_signalTypeAcronyms.TryGetValue(signalID, out signalTypeAcronym);
 
+    protected override void SetupSubscriberConnector(SubscriberConnector connector)
+    {
+        base.SetupSubscriberConnector(connector);
+
+        // Enable auto-reconnect sequence:
+        connector.AutoReconnect = true;
+
+        // Set maximum number to attempt reconnection, -1 means never stop retrying connection attempts:
+        connector.MaxRetries = -1;
+
+        // Set number of initial milliseconds to wait before retrying connection attempt:
+        connector.RetryInterval = 1000;
+
+        // Set maximum number of milliseconds to wait before retrying connection attempt, connection retry attempts use exponential back-off algorithm up to this defined maximum:
+        connector.MaxRetryInterval = 6000;
+    }
+
     protected override void StatusMessage(string message)
     {
         m_parent.UpdateStatus(message);

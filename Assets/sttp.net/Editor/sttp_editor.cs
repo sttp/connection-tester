@@ -44,5 +44,13 @@ public class sttp_editor
 #endif
         if (!currentPath?.Contains(dllPath) ?? false)
             Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
+
+        EditorApplication.playModeStateChanged += sttp_editor_playModeStateChanged;
+    }
+
+    private static void sttp_editor_playModeStateChanged(PlayModeStateChange state)
+    {
+        if (state == PlayModeStateChange.ExitingPlayMode)
+            GraphLines.EditorExitingPlayMode();
     }
 }
