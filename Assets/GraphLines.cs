@@ -50,8 +50,8 @@ public class GraphLines : MonoBehaviour
     #if !UNITY_EDITOR
         // Setup path at run-time to load proper version of native sttp.net.lib.dll
         string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
-
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins";
+        string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        string dllPath = Path.Combine(dataPath, "Plugins");
 
         if (!currentPath?.Contains(dllPath) ?? false)
             Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
@@ -330,6 +330,7 @@ public class GraphLines : MonoBehaviour
     private bool m_historicalSubscription;
     private Vector2 m_scrollPosition;
     private int m_guiSize = 1;
+    private bool m_subscribed;
     private bool m_shuttingDown;
 
     // Public fields exposed to Unity UI interface
@@ -355,7 +356,7 @@ public class GraphLines : MonoBehaviour
         m_subscriber = new DataSubscriber(this);
 
         // Setup trigger to detect and handle exiting play mode
-        s_editorExitingPlayMode = OnApplicationQuit;
+        s_editorExitingPlayMode = EndApplication;
     }
 
     #endregion
@@ -486,34 +487,34 @@ public class GraphLines : MonoBehaviour
             OnScreenResize();
 
         // Nothing to update if we haven't subscribed yet
-        if (!m_subscriber?.Subscribed ?? false)
-            return;
-
-        // Make sure lines are initialized before trying to draw them
-        if ((object)m_linesInitializedWaitHandle != null)
+        if (m_subscribed)
         {
-            // Only wait one millisecond then try again at next update
-            if (m_linesInitializedWaitHandle.WaitOne(1))
-                m_linesInitializedWaitHandle = null;
-            else
-                return;
-        }
-
-        // Dequeue all new measurements and apply values to lines
-        while (m_dataQueue.TryDequeue(out IList<Measurement> measurements))
-        {
-            for (int i = 0; i < measurements.Count; i++)
+            // Make sure lines are initialized before trying to draw them
+            if ((object)m_linesInitializedWaitHandle != null)
             {
-                Measurement measurement = measurements[i];
-
-                if (m_dataLines.TryGetValue(measurement.GetSignalID(), out DataLine line))
-                    line.UpdateValue((float)measurement.Value);
+                // Only wait one millisecond then try again at next update
+                if (m_linesInitializedWaitHandle.WaitOne(1))
+                    m_linesInitializedWaitHandle = null;
+                else
+                    return;
             }
-        }
 
-        // Update the scales to display the new measurements
-        foreach (Scale scale in m_scales.Values)
-            scale.Update();
+            // Dequeue all new measurements and apply values to lines
+            while (m_dataQueue.TryDequeue(out IList<Measurement> measurements))
+            {
+                for (int i = 0; i < measurements.Count; i++)
+                {
+                    Measurement measurement = measurements[i];
+
+                    if (m_dataLines.TryGetValue(measurement.GetSignalID(), out DataLine line))
+                        line.UpdateValue((float)measurement.Value);
+                }
+            }
+
+            // Update the scales to display the new measurements
+            foreach (Scale scale in m_scales.Values)
+                scale.Update();
+        }
 
         // Allow application exit via "ESC" key
         if (Input.GetKey("escape"))
@@ -624,6 +625,8 @@ public class GraphLines : MonoBehaviour
         DataLine line;
         Scale scale;
 
+        m_subscribed = false;
+
         if ((object)args == null || args.Length < 1)
             return;
 
@@ -663,6 +666,8 @@ public class GraphLines : MonoBehaviour
 
             m_dataLines.TryAdd(measurementID, line);
         }
+
+        m_subscribed = true;
 
         // Update legend - we do this on a different thread since we've already
         // waited around for initial set of lines to be created on a UI thread,
@@ -775,7 +780,7 @@ public class GraphLines : MonoBehaviour
     // Subscribes or resubscribes to real-time or historical stream using current filter expression
     internal void InitiateSubscription(bool historical = false)
     {
-        if (m_subscriber.Subscribed || m_historicalSubscription)
+        if (m_subscribed || m_historicalSubscription)
             ClearSubscription();
 
         m_historicalSubscription = historical;
@@ -894,7 +899,7 @@ public class GraphLines : MonoBehaviour
         m_processInterval = (int)GUILayout.HorizontalSlider((float)m_processInterval, 0.0F, 300.0F, sliderStyle, sliderThumbStyle, GUILayout.Width(125 * widthScalar));
 
         // Dynamically update processing interval when user moves slider control
-        if ((m_subscriber?.Subscribed ?? false) && m_processInterval != m_lastProcessInterval)
+        if (m_subscribed && m_processInterval != m_lastProcessInterval)
         {
             if (m_lastProcessInterval > 0)
             {
@@ -942,6 +947,8 @@ public class GraphLines : MonoBehaviour
     // Clears an existing subscription
     internal void ClearSubscription()
     {
+        m_subscribed = false;
+
         // Reset subscription state
         m_linesInitializedWaitHandle = null;
 
@@ -987,16 +994,6 @@ public class GraphLines : MonoBehaviour
     {
         m_shuttingDown = true;
 
-    #if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-    #else
-        Application.Quit();
-    #endif
-    }
-
-    protected void OnDestroy()
-    {
-        m_subscriber.AutoReconnect = false;
         TerminateConnection();
 
         if ((object)m_hideStatusTimer != null)
@@ -1006,13 +1003,18 @@ public class GraphLines : MonoBehaviour
         }
 
         m_hideStatusTimer = null;
+
+        //m_subscriber?.Dispose();
+
+    #if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+    #else
+        Application.Quit();
+    #endif
     }
 
     protected void OnApplicationQuit()
     {
-        // Make sure destroy gets called
-        OnDestroy();
-
         // Load existing INI file settings
         IniFile iniFile = new IniFile(Application.persistentDataPath + "/" + IniFileName);
 

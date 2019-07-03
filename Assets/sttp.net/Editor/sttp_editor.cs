@@ -34,14 +34,9 @@ public class sttp_editor
     {
         // Setup path to load proper version of native sttp.net.lib.dll
         string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
+        string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
 
-#if UNITY_EDITOR_32
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}sttp.net{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86";
-#elif UNITY_EDITOR_64
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}sttp.net{Path.DirectorySeparatorChar}Plugins{Path.DirectorySeparatorChar}x86_64";
-#else // Player
-        string dllPath = $"{Application.dataPath}{Path.DirectorySeparatorChar}Plugins";
-#endif
         if (!currentPath?.Contains(dllPath) ?? false)
             Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
 
