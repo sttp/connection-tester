@@ -32,10 +32,14 @@ public class sttp_editor
 {
     static sttp_editor()
     {
-        // Setup path to load proper version of native sttp.net.lib.dll
+        // Setup path to load proper version of native sttp.net.lib.dll from inside Unity editor
         string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
         string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+#if UNITY_EDITOR_32
+        string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86");
+#else
         string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
+#endif
 
         if (!currentPath?.Contains(dllPath) ?? false)
             Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);

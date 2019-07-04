@@ -151,6 +151,6 @@ public class DataSubscriber : SubscriberInstance
     protected override void ConnectionTerminated()
     {
         StatusMessage("Connection terminated.");
-        m_parent.ClearSubscription();
+        m_parent.ConnectionTerminated();
     }
 }

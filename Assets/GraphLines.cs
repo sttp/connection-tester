@@ -330,6 +330,7 @@ public class GraphLines : MonoBehaviour
     private bool m_historicalSubscription;
     private Vector2 m_scrollPosition;
     private int m_guiSize = 1;
+    private bool m_connected;
     private bool m_subscribed;
     private bool m_shuttingDown;
 
@@ -785,19 +786,26 @@ public class GraphLines : MonoBehaviour
 
         m_historicalSubscription = historical;
         m_subscriber.FilterExpression = m_filterExpression;
-        m_lastProcessInterval = 0;
 
         if (historical)
         {
             m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
             m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-            UpdateStatus($"*** Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed ***");
+            m_lastProcessInterval = m_processInterval;
+            UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
         }        
     }
 
     internal void ConnectionEstablished()
     {
+        m_connected = true;
         m_controlWindowMinimized = true;
+    }
+
+    internal void ConnectionTerminated()
+    {
+        m_connected = false;
+        ClearSubscription();
     }
 
     private void OnScreenResize()
@@ -902,11 +910,12 @@ public class GraphLines : MonoBehaviour
         if (m_subscribed && m_processInterval != m_lastProcessInterval)
         {
             if (m_lastProcessInterval > 0)
-            {
-                m_lastProcessInterval = m_processInterval;
+            {                
                 m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-                UpdateStatus($"*** Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} ***");
+                UpdateStatus($"Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")}...");
             }
+
+            m_lastProcessInterval = m_processInterval;
         }
 
         // Resubscribe with historical replay parameters
@@ -984,10 +993,11 @@ public class GraphLines : MonoBehaviour
     {
         ClearSubscription();
 
-        if (m_subscriber?.Connected ?? false)
+        if (m_connected)
+        {
             UpdateStatus("Terminating current connection...");
-
-        m_subscriber?.Disconnect();
+            m_subscriber?.Disconnect();
+        }
     }
 
     private void EndApplication()
@@ -1003,8 +1013,6 @@ public class GraphLines : MonoBehaviour
         }
 
         m_hideStatusTimer = null;
-
-        //m_subscriber?.Dispose();
 
     #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
@@ -1036,7 +1044,9 @@ public class GraphLines : MonoBehaviour
         {
             Debug.Log("ERROR: " + ex.Message);
         }
+
+        m_subscriber?.Dispose();
     }
 
-#endregion
+    #endregion
 }
