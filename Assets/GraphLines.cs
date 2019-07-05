@@ -310,6 +310,8 @@ namespace ConnectionTester
         private const string IniFileName = "settings.ini";
         private const int ControlWindowActiveHeight = 130;
         private const int ControlWindowMinimizedHeight = 20;
+        private const int MinGuiSize = 1;
+        private const int MaxGuiSize = 3;
 
         // Fields
         private readonly DataSubscriber m_subscriber;
@@ -414,7 +416,15 @@ namespace ConnectionTester
             m_stopTime = iniFile["Settings", "StopTime", m_stopTime];
             m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", m_maxSignals.ToString()]);
             m_autoInitiateConnection = bool.Parse(iniFile["Settings", "AutoInitiateConnection", m_autoInitiateConnection.ToString()]);
+            m_guiSize = int.Parse(iniFile["Settings", "GuiSize", m_guiSize.ToString()]);
             m_controlWindowMinimized = m_autoInitiateConnection;
+
+            // Validate deserialized GUI size
+            if (m_guiSize < MinGuiSize)
+                m_guiSize = MinGuiSize;
+
+            if (m_guiSize > MaxGuiSize)
+                m_guiSize = MaxGuiSize;
 
             // Attempt to save INI file updates (e.g., to restore any missing settings)
             try
@@ -555,11 +565,11 @@ namespace ConnectionTester
                 else if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus))
                     m_guiSize--;
 
-                if (m_guiSize < 1)
-                    m_guiSize = 1;
+                if (m_guiSize < MinGuiSize)
+                    m_guiSize = MinGuiSize;
 
-                if (m_guiSize > 3)
-                    m_guiSize = 3;
+                if (m_guiSize > MaxGuiSize)
+                    m_guiSize = MaxGuiSize;
 
                 if (m_guiSize != orgGuiSize)
                 {
@@ -571,7 +581,7 @@ namespace ConnectionTester
                 if (Input.GetKey(KeyCode.F1))
                 {
                     m_lastKeyCheck = currentTicks;
-                    Process.Start("https://github.com/sttp/connection-tester");
+                    Process.Start("https://github.com/sttp/connection-tester/tree/master/Docs");
                 }
 
                 // Connect with "C" key
@@ -1109,6 +1119,7 @@ namespace ConnectionTester
             iniFile["Settings", "FilterExpression"] = m_filterExpression;
             iniFile["Settings", "StartTime"] = m_startTime;
             iniFile["Settings", "StopTime"] = m_stopTime;
+            iniFile["Settings", "GuiSize"] = m_guiSize.ToString();
 
             // Attempt to save INI file updates
             try
