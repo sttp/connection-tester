@@ -28,129 +28,132 @@ using System.Collections.Generic;
 using System.Linq;
 
 // ReSharper disable once CheckNamespace
-public class DataSubscriber : SubscriberInstance
+namespace ConnectionTester
 {
-    private readonly GraphLines m_parent;
-    private readonly ConcurrentDictionary<Guid, string> m_signalTypeAcronyms = new ConcurrentDictionary<Guid, string>();
-
-    public DataSubscriber(GraphLines parent) => m_parent = parent;
-
-    public bool TryGetSignalTypeAcronym(Guid signalID, out string signalTypeAcronym) => m_signalTypeAcronyms.TryGetValue(signalID, out signalTypeAcronym);
-
-    protected override void SetupSubscriberConnector(SubscriberConnector connector)
+    public class DataSubscriber : SubscriberInstance
     {
-        base.SetupSubscriberConnector(connector);
+        private readonly GraphLines m_parent;
+        private readonly ConcurrentDictionary<Guid, string> m_signalTypeAcronyms = new ConcurrentDictionary<Guid, string>();
 
-        // Enable auto-reconnect sequence:
-        connector.AutoReconnect = true;
+        public DataSubscriber(GraphLines parent) => m_parent = parent;
 
-        // Set maximum number to attempt reconnection, -1 means never stop retrying connection attempts:
-        connector.MaxRetries = -1;
+        public bool TryGetSignalTypeAcronym(Guid signalID, out string signalTypeAcronym) => m_signalTypeAcronyms.TryGetValue(signalID, out signalTypeAcronym);
 
-        // Set number of initial milliseconds to wait before retrying connection attempt:
-        connector.RetryInterval = 1000;
-
-        // Set maximum number of milliseconds to wait before retrying connection attempt, connection retry attempts use exponential back-off algorithm up to this defined maximum:
-        connector.MaxRetryInterval = 6000;
-    }
-
-    protected override void StatusMessage(string message)
-    {
-        m_parent.UpdateStatus(message);
-    }
-
-    protected override void ErrorMessage(string message)
-    {
-        StatusMessage($"ERROR: {message}");
-    }
-
-    protected override void DataStartTime(DateTime startTime)
-    {
-        StatusMessage($"Received first measurement at timestamp {startTime:yyyy-MM-dd HH:mm:ss.fff}");
-    }
-
-    protected override void ReceivedMetadata(ByteBuffer payload)
-    {
-        StatusMessage($"Received {payload.Count} bytes of metadata, parsing...");
-        base.ReceivedMetadata(payload);
-    }
-
-    protected override void ParsedMetadata()
-    {
-        StatusMessage("Metadata successfully parsed.");
-    }
-
-    public override void SubscriptionUpdated(SignalIndexCache signalIndexCache)
-    {
-        MeasurementMetadataMap measurementMetadata = new MeasurementMetadataMap();
-        DeviceMetadataMap deviceMetadata = new DeviceMetadataMap();
-
-        GetParsedMeasurementMetadata(measurementMetadata);
-        GetParsedDeviceMetadata(deviceMetadata);
-
-        HashSet<Guid> signalIDs = new HashSet<Guid>(signalIndexCache.GetSignalIDs());
-        Dictionary<string, Dictionary<int, PhasorReference>> devicePhasors = new Dictionary<string, Dictionary<int, PhasorReference>>();
-
-        foreach (MeasurementMetadata measurement in measurementMetadata.Values)
+        protected override void SetupSubscriberConnector(SubscriberConnector connector)
         {
-            if (signalIDs.Contains(measurement.SignalID) && deviceMetadata.TryGetValue(measurement.DeviceAcronym, out DeviceMetadata device))
-            {
-                if (!devicePhasors.TryGetValue(device.Acronym, out Dictionary<int, PhasorReference> phasors))
-                {
-                    phasors = new Dictionary<int, PhasorReference>();
+            base.SetupSubscriberConnector(connector);
 
-                    foreach (PhasorReference phasor in device.Phasors)
-                        phasors[phasor.Phasor.SourceIndex] = phasor;
+            // Enable auto-reconnect sequence:
+            connector.AutoReconnect = true;
 
-                    devicePhasors[device.Acronym] = phasors;
-                }
+            // Set maximum number to attempt reconnection, -1 means never stop retrying connection attempts:
+            connector.MaxRetries = -1;
 
-                SignalKind signalKind = measurement.Reference.Kind;
+            // Set number of initial milliseconds to wait before retrying connection attempt:
+            connector.RetryInterval = 1000;
 
-                if (phasors.TryGetValue(measurement.PhasorSourceIndex, out PhasorReference phasorReference))
-                    m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind, phasorReference.Phasor.Type[0]);
-                else
-                    m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind);
-            }
+            // Set maximum number of milliseconds to wait before retrying connection attempt, connection retry attempts use exponential back-off algorithm up to this defined maximum:
+            connector.MaxRetryInterval = 6000;
         }
 
-        m_parent.InitializeSubscription(signalIDs.ToArray());
-    }
+        protected override void StatusMessage(string message)
+        {
+            m_parent.UpdateStatus(message);
+        }
 
-    // Since new measurements will continue to arrive and be queued even when screen is not visible, it
-    // is important that unity application be set to "run in background" to avoid running out of memory
-    public override unsafe void ReceivedNewMeasurements(Measurement* measurements, int length)
-    {
-        List<Measurement> queue = new List<Measurement>(length);
+        protected override void ErrorMessage(string message)
+        {
+            StatusMessage($"ERROR: {message}");
+        }
 
-        for (int i = 0; i < length; i++)
-            queue.Add(measurements[i]);
+        protected override void DataStartTime(DateTime startTime)
+        {
+            StatusMessage($"Received first measurement at timestamp {startTime:yyyy-MM-dd HH:mm:ss.fff}");
+        }
 
-        m_parent.EnqueData(queue);
-    }
+        protected override void ReceivedMetadata(ByteBuffer payload)
+        {
+            StatusMessage($"Received {payload.Count} bytes of metadata, parsing...");
+            base.ReceivedMetadata(payload);
+        }
 
-    protected override void ConfigurationChanged()
-    {
-        StatusMessage("Configuration change detected. Metadata refresh requested.");
-    }
+        protected override void ParsedMetadata()
+        {
+            StatusMessage("Metadata successfully parsed.");
+        }
 
-    protected override void HistoricalReadComplete()
-    {
-        StatusMessage("Historical data read complete. Restarting real-time subscription...");
+        public override void SubscriptionUpdated(SignalIndexCache signalIndexCache)
+        {
+            MeasurementMetadataMap measurementMetadata = new MeasurementMetadataMap();
+            DeviceMetadataMap deviceMetadata = new DeviceMetadataMap();
 
-        // After processing of a historical query has completed, return to the real-time subscription
-        m_parent.InitiateSubscription();
-    }
+            GetParsedMeasurementMetadata(measurementMetadata);
+            GetParsedDeviceMetadata(deviceMetadata);
 
-    protected override void ConnectionEstablished()
-    {
-        StatusMessage("Connection established.");
-        m_parent.ConnectionEstablished();
-    }
+            HashSet<Guid> signalIDs = new HashSet<Guid>(signalIndexCache.GetSignalIDs());
+            Dictionary<string, Dictionary<int, PhasorReference>> devicePhasors = new Dictionary<string, Dictionary<int, PhasorReference>>();
 
-    protected override void ConnectionTerminated()
-    {
-        StatusMessage("Connection terminated.");
-        m_parent.ConnectionTerminated();
+            foreach (MeasurementMetadata measurement in measurementMetadata.Values)
+            {
+                if (signalIDs.Contains(measurement.SignalID) && deviceMetadata.TryGetValue(measurement.DeviceAcronym, out DeviceMetadata device))
+                {
+                    if (!devicePhasors.TryGetValue(device.Acronym, out Dictionary<int, PhasorReference> phasors))
+                    {
+                        phasors = new Dictionary<int, PhasorReference>();
+
+                        foreach (PhasorReference phasor in device.Phasors)
+                            phasors[phasor.Phasor.SourceIndex] = phasor;
+
+                        devicePhasors[device.Acronym] = phasors;
+                    }
+
+                    SignalKind signalKind = measurement.Reference.Kind;
+
+                    if (phasors.TryGetValue(measurement.PhasorSourceIndex, out PhasorReference phasorReference))
+                        m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind, phasorReference.Phasor.Type[0]);
+                    else
+                        m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind);
+                }
+            }
+
+            m_parent.InitializeSubscription(signalIDs.ToArray());
+        }
+
+        // Since new measurements will continue to arrive and be queued even when screen is not visible, it
+        // is important that unity application be set to "run in background" to avoid running out of memory
+        public override unsafe void ReceivedNewMeasurements(Measurement* measurements, int length)
+        {
+            List<Measurement> queue = new List<Measurement>(length);
+
+            for (int i = 0; i < length; i++)
+                queue.Add(measurements[i]);
+
+            m_parent.EnqueData(queue);
+        }
+
+        protected override void ConfigurationChanged()
+        {
+            StatusMessage("Configuration change detected. Metadata refresh requested.");
+        }
+
+        protected override void HistoricalReadComplete()
+        {
+            StatusMessage("Historical data read complete. Restarting real-time subscription...");
+
+            // After processing of a historical query has completed, return to the real-time subscription
+            m_parent.InitiateSubscription();
+        }
+
+        protected override void ConnectionEstablished()
+        {
+            StatusMessage("Connection established.");
+            m_parent.ConnectionEstablished();
+        }
+
+        protected override void ConnectionTerminated()
+        {
+            StatusMessage("Connection terminated.");
+            m_parent.ConnectionTerminated();
+        }
     }
 }

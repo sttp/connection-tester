@@ -1,5 +1,5 @@
 ﻿//******************************************************************************************************
-//  sttp_editor.cs - Gbtc
+//  EditorEventManager.cs - Gbtc
 //
 //  Copyright © 2019, Grid Protection Alliance.  All Rights Reserved.
 //
@@ -16,7 +16,7 @@
 //
 //  Code Modification History:
 //  ----------------------------------------------------------------------------------------------------
-//  07/01/2019 - j. Ritchie Carroll
+//  07/01/2019 - J. Ritchie Carroll
 //       Generated original version of source code.
 //
 //******************************************************************************************************
@@ -27,29 +27,32 @@ using UnityEditor;
 using UnityEngine;
 
 // ReSharper disable once CheckNamespace
-[InitializeOnLoad]
-public class sttp_editor
+namespace ConnectionTester.Editor
 {
-    static sttp_editor()
+    [InitializeOnLoad]
+    public class EditorEventManager
     {
-        // Setup path to load proper version of native sttp.net.lib.dll from inside Unity editor
-        string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
-        string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-#if UNITY_EDITOR_32
-        string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86");
-#else
-        string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
-#endif
+        static EditorEventManager()
+        {
+            // Setup path to load proper version of native sttp.net.lib.dll from inside Unity editor
+            string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
+            string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        #if UNITY_EDITOR_32
+            string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86");
+        #else
+            string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
+        #endif
 
-        if (!currentPath?.Contains(dllPath) ?? false)
-            Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
+            if (!currentPath?.Contains(dllPath) ?? false)
+                Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
 
-        EditorApplication.playModeStateChanged += sttp_editor_playModeStateChanged;
-    }
+            EditorApplication.playModeStateChanged += PlayModeStateChangedHandler;
+        }
 
-    private static void sttp_editor_playModeStateChanged(PlayModeStateChange state)
-    {
-        if (state == PlayModeStateChange.ExitingPlayMode)
-            GraphLines.EditorExitingPlayMode();
+        private static void PlayModeStateChangedHandler(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+                GraphLines.EditorExitingPlayMode();
+        }
     }
 }
