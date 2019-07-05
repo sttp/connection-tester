@@ -27,14 +27,17 @@ using sttp;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using UnityEngine;
 using UnityGSF;
 using Vectrosity;
+using Debug = UnityEngine.Debug;
 
 // ReSharper disable UnusedMember.Local
 // ReSharper disable IntroduceOptionalParameters.Local
@@ -310,6 +313,8 @@ namespace ConnectionTester
 
         // Fields
         private readonly DataSubscriber m_subscriber;
+        private readonly string m_version;
+        private readonly string m_buildDate;
         private ConcurrentDictionary<string, Scale> m_scales;
         private ConcurrentDictionary<Guid, DataLine> m_dataLines;
         private ConcurrentQueue<IList<Measurement>> m_dataQueue;
@@ -335,7 +340,7 @@ namespace ConnectionTester
         private bool m_historicalSubscription;
         private Vector2 m_scrollPosition;
         private int m_guiSize = 1;
-        private long m_lastGuiSizeUpdate;
+        private long m_lastKeyCheck;
         private bool m_connected;
         private bool m_subscribed;
         private bool m_shuttingDown;
@@ -368,6 +373,14 @@ namespace ConnectionTester
 
             // Setup trigger to detect and handle exiting play mode
             s_editorExitingPlayMode = EndApplication;
+
+            // Read version info from .NET assembly
+            Assembly assembly = typeof(GraphLines).Assembly;
+            AssemblyName assemblyInfo = assembly.GetName();
+            DateTime buildDate = File.GetLastWriteTime(assembly.Location);
+
+            m_version = $"{assemblyInfo.Version.Major}.{assemblyInfo.Version.Minor}.{assemblyInfo.Version.Build}";
+            m_buildDate = $"{buildDate:yyyy-MM-dd HH:mm:ss}";
         }
 
         #endregion
@@ -487,6 +500,9 @@ namespace ConnectionTester
                     m_statusMesh = statusObject.GetComponent<TextMesh>();
             }
 
+            UpdateStatus("Press '+' to increase font size, '-' to decrease.");
+            UpdateStatus("Press 'F1' for help page.");
+
             if (m_autoInitiateConnection)
                 InitiateConnection();
         }
@@ -529,28 +545,52 @@ namespace ConnectionTester
 
             long currentTicks = DateTime.UtcNow.Ticks;
 
-            if (currentTicks - m_lastGuiSizeUpdate > TimeSpan.TicksPerMillisecond * 200)
+            if (currentTicks - m_lastKeyCheck > TimeSpan.TicksPerMillisecond * 200)
             {
+                int orgGuiSize = m_guiSize;
+
+                // Plus / Minus keys will increase / decrease font size
                 if (Input.GetKey(KeyCode.Plus) || Input.GetKey(KeyCode.KeypadPlus))
-                {
                     m_guiSize++;
-                    m_lastGuiSizeUpdate = currentTicks;
-                }
                 else if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus))
-                {
                     m_guiSize--;
-                    m_lastGuiSizeUpdate = currentTicks;
+
+                if (m_guiSize < 1)
+                    m_guiSize = 1;
+
+                if (m_guiSize > 3)
+                    m_guiSize = 3;
+
+                if (m_guiSize != orgGuiSize)
+                {
+                    m_lastKeyCheck = currentTicks;
+                    OnScreenResize();
+                }
+
+                // F1 key will launch help page
+                if (Input.GetKey(KeyCode.F1))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    Process.Start("https://github.com/sttp/connection-tester");
+                }
+
+                // Connect with "C" key
+                if (Input.GetKey(KeyCode.C))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    InitiateConnection();
+                }
+
+                // Disconnect with "D" key
+                if (Input.GetKey(KeyCode.D))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    TerminateConnection();
                 }
             }
 
-            if (m_guiSize < 0)
-                m_guiSize = 1;
-
-            if (m_guiSize > 5)
-                m_guiSize = 5;
-
-            // Allow application exit via "ESC" key
-            if (Input.GetKey("escape"))
+            // Exit application with "ESC" key
+            if (Input.GetKey(KeyCode.Escape))
                 EndApplication();
         }
 
@@ -581,11 +621,11 @@ namespace ConnectionTester
                     m_controlWindowMinimized = false;
                 else if (!m_controlWindowMinimized)
                     m_controlWindowMinimized = true;
-
-                // Mouse based camera orbit is disabled while control window is active
-                if ((object)m_mouseOrbitScript != null)
-                    m_mouseOrbitScript.isActive = m_controlWindowMinimized;
             }
+
+            // Mouse based camera orbit is disabled while control window is active
+            if ((object)m_mouseOrbitScript != null)
+                m_mouseOrbitScript.isActive = m_controlWindowMinimized;
 
             // Add a close application button on the main screen, this is handy
             // on mobile deployments where hitting ESC button is not so easy
@@ -595,6 +635,11 @@ namespace ConnectionTester
 
             if (GUI.Button(new Rect(Screen.width - size, 0, size, size), "X", buttonStyle))
                 EndApplication();
+
+            GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
+            versionLabelStyle.fontSize = 11 * m_guiSize;
+            versionLabelStyle.alignment = TextAnchor.UpperLeft;
+            GUILayout.Label($"v{m_version}", versionLabelStyle);
         }
 
         private void DrawControlsWindow(int windowID)
@@ -708,7 +753,7 @@ namespace ConnectionTester
             iniLabelStyle.fontStyle = FontStyle.Italic;
             iniLabelStyle.alignment = TextAnchor.UpperCenter;
 
-            GUILayout.Label($" Settings File = \"{Application.persistentDataPath + "/" + IniFileName}\" - Resolution = {Screen.width} x {Screen.height}", iniLabelStyle);
+            GUILayout.Label($" Settings File = \"{Application.persistentDataPath + "/" + IniFileName}\" - Resolution = {Screen.width} x {Screen.height} - Build Date = {m_buildDate}", iniLabelStyle);
 
             GUILayout.EndHorizontal();
 
@@ -1044,11 +1089,11 @@ namespace ConnectionTester
 
             m_hideStatusTimer = null;
 
-#if UNITY_EDITOR
+        #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
+        #else
+            Application.Quit();
+        #endif
         }
 
         protected void OnApplicationQuit()
