@@ -10,7 +10,7 @@ The following table details the functionality of the controls:
 
 | UI Control | Function |
 | :--------: | :------- |
-| `Connection String`<br/>Text Box | Defines the connection string for the publisher to be connected to. The format is `server=hostname:port` where `hostname` can be the DNS name of IP of the STTP data publisher. The `port` is the STTP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding the following `;dataChannel=9191` to end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
+| `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
 | `Connect`<br/>Button | Attempts a connection to the STTP data publisher defined in the `Connection String`. |
 | `Filter Expression`<br/>Text Box | Defines an expression used select the desired signals to trend. This syntax is similar to a SQL clause, but does not implement the full SQL language, see [Filter Expressions](https://github.com/GridProtectionAlliance/gsf/blob/master/Source/Documentation/FilterExpressions.md) documentation. |
 | `Update`<br/>Button | Updates the active subscription with changes specified in the `Filter Expression`. |
@@ -39,15 +39,16 @@ Note that positive values are also supported, for example,
 
 ## Hot Keys
 
-Note that hot keys only work when `Subscription Controls` dialog is minimized.
+Note that hot keys only work when [Subscription Controls](#subscription-controls) dialog is minimized.
 
-|  Key  | Action              |
-| :---: | :------------------ |
-| `ESC` | Exit Application    |
-|  `C`  | Connect / Reconnect |
-|  `D`  | Disconnect          |
-|  `+`  | Increase Font Size  |
-|  `-`  | Decrease Font Size  |
+|  Key  | Action              | Version Available |
+| :---: | :------------------ | :---------------: |
+| `ESC` | Exit Application    |       1.0.0       |
+| `F1`  | Open Help Page      |       1.0.3       |
+|  `C`  | Connect / Reconnect |       1.0.3       |
+|  `D`  | Disconnect          |       1.0.3       |
+|  `+`  | Increase Font Size  |       1.0.3       |
+|  `-`  | Decrease Font Size  |       1.0.3       |
 
 ## Settings File
 
@@ -63,17 +64,17 @@ The settings are defined as follows:
 
 | Setting | Default Value | Description |
 | :-----: | :-----------: | :---------- |
-| AutoInitiateConnection | `False` | When value is `True`, connection to last defined connection string will be attempted on startup. |
-| StartTime | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay. |
-| StopTime | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay. |
-| FilterExpression | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'`` | Last UI defined filter expression that defines which points to select. |
-| Title | `STTP Connection Tester` | Title that appears above the graph plane. |
-| MaxSignals | `30` | Maximum number of signals that will be trended. |
-| LegendFormat | `{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]` | Format of metadata description for signal trend legend. |
-| PointsInLine | `50` | Number of points to display per trend line. |
-| ConnectionString | `server=localhost:7165;` | Last UI defined connection string. |
-| StatusDisplayInterval | `10000` | Maximum time, in milliseconds, that status updates will remain visible.
-| StatusRows | `4` | Maximum number of rows that will be maintained for status updates. |
-| LineWidth | `4` | Display width of trend lines. |
-| LineDepthOffset | `0.75` | Z-axis depth offset for multiple trend lines. |
-| GuiSize | `1` | Last UI defined font size factor for the text based GUI elements, e.g., subscriber controls. Valid values are from `1` to `3`.
+| `AutoInitiateConnection` | `False` | When value is `True`, connection to last defined connection string will be attempted on startup. |
+| `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay. |
+| `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay. |
+| `FilterExpression` | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'` | Last UI defined filter expression that defines which points to select. |
+| `Title` | `STTP Connection Tester` | Title that appears above the graph plane. |
+| `MaxSignals` | `30` | Maximum number of signals that will be trended. |
+| `LegendFormat` | `{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]` | Format of metadata description for signal trend legend. |
+| `PointsInLine` | `50` | Number of points to display per trend line. |
+| `ConnectionString` | `server=localhost:7165;` | Last UI defined connection string. |
+| `StatusDisplayInterval` | `10000` | Maximum time, in milliseconds, that status updates will remain visible.
+| `StatusRows` | `4` | Maximum number of rows that will be maintained for status updates. |
+| `LineWidth` | `4` | Display width of trend lines. |
+| `LineDepthOffset` | `0.75` | Z-axis depth offset for multiple trend lines. |
+| `GuiSize` | `1` | Last UI defined font size factor for the text based GUI elements, e.g., subscriber controls. Valid values are from `1` to `3`.
