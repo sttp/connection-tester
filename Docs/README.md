@@ -35,7 +35,7 @@ The value can be specified in one of the following formats:
 | `*-Nd` | `*-1d` |	Evaluates to `N` days before _now_. |
 
 Note that positive values are also supported, for example,
-`*+2d` would evaluates to 2 days from _now_. Future values keep a historical subscription active into the future so long as the data publisher and active replay rate supports the time frame.
+`*+2d` would evaluate to 2 days from _now_. Future values keep a historical subscription active into the future so long as the data publisher and active replay rate support the time frame.
 
 ## Hot Keys
 
@@ -65,8 +65,8 @@ The settings are defined as follows:
 | Setting | Default Value | Description |
 | :-----: | :-----------: | :---------- |
 | `AutoInitiateConnection` | `False` | When value is `True`, connection to last defined connection string will be attempted on startup. |
-| `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay. |
-| `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay. |
+| `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
+| `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
 | `FilterExpression` | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'` | Last UI defined filter expression that defines which points to select. |
 | `Title` | `STTP Connection Tester` | Title that appears above the graph plane. |
 | `MaxSignals` | `30` | Maximum number of signals that will be trended. |
