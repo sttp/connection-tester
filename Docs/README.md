@@ -12,7 +12,7 @@ The following table details the functionality of the controls:
 | :--------: | :------- |
 | `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
 | `Connect`<br/>Button | Attempts a connection to the STTP data publisher defined in the `Connection String`. |
-| `Filter Expression`<br/>Text Box | Defines an expression used select the desired signals to trend. This syntax is similar to a SQL clause, but does not implement the full SQL language, see [Filter Expressions](https://github.com/GridProtectionAlliance/gsf/blob/master/Source/Documentation/FilterExpressions.md) documentation. |
+| `Filter Expression`<br/>Text Box | Defines an expression used select the desired signals to trend. This syntax is similar to a SQL clause, but does not implement the full SQL language, see [STTP Filter Expressions](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md) documentation. |
 | `Update`<br/>Button | Updates the active subscription with changes specified in the `Filter Expression`. |
 | `Start Time`<br/>Text Box | Defines the timestamp or relative interval to now for the _start_ time of a requested historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals) below. |
 | `Stop Time`<br/>Text Box | Defines the timestamp or relative interval to now for the _stop_ time of a requested historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals) below. |
@@ -67,10 +67,10 @@ The settings are defined as follows:
 | `AutoInitiateConnection` | `False` | When value is `True`, connection to last defined connection string will be attempted on startup. |
 | `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
 | `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
-| `FilterExpression` | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'` | Last UI defined filter expression that defines which points to select. |
+| `FilterExpression` | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'` | Last UI defined filter expression that defines which points to select. See [STTP Filter Expressions](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md) documentation. |
 | `Title` | `STTP Connection Tester` | Title that appears above the graph plane. |
 | `MaxSignals` | `30` | Maximum number of signals that will be trended. |
-| `LegendFormat` | `{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]` | Format of metadata description for signal trend legend. |
+| `LegendFormat` | `{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]` | Format of metadata description for signal trend legend. See available [MeasurementDetail](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md#measurementdetail) fields. |
 | `PointsInLine` | `50` | Number of points to display per trend line. |
 | `ConnectionString` | `server=localhost:7165;` | Last UI defined connection string. |
 | `StatusDisplayInterval` | `10000` | Maximum time, in milliseconds, that status updates will remain visible.
