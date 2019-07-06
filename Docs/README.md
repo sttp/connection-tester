@@ -27,7 +27,7 @@ The value can be specified in one of the following formats:
 
 | Time Format	| Example | Description |
 | :---------: | :-----: | :---------: |
-| `yyyy-mm-dd HH:MM:ss.fff` | `2020-12-30 23:59:59.033` | Absolute date and time |
+| `yyyy-mm-dd HH:MM:ss.fff` | `2020-12-30 23:59:59.033` | Absolute date and time in UTC. |
 | `*` | `*` |	Evaluates to current time, i.e., _now_. |
 | `*-Ns` | `*-20s` | Evaluates to `N` seconds before _now_ |
 | `*-Nm` | `*-10m` |	Evaluates to `N` minutes before _now_.
