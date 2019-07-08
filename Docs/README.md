@@ -10,13 +10,13 @@ The following table details the functionality of the controls:
 
 | UI Control | Function |
 | :--------: | :------- |
-| `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
+| `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to the end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
 | `Connect`<br/>Button | Attempts a connection to the STTP data publisher defined in the `Connection String`. |
 | `Filter Expression`<br/>Text Box | Defines an expression used select the desired signals to trend. This syntax is similar to a SQL clause, but does not implement the full SQL language, see [STTP Filter Expressions](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md) documentation. |
 | `Update`<br/>Button | Updates the active subscription with changes specified in the `Filter Expression`. |
 | `Start Time`<br/>Text Box | Defines the timestamp or relative interval to now for the _start_ time of a requested historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals) below. |
 | `Stop Time`<br/>Text Box | Defines the timestamp or relative interval to now for the _stop_ time of a requested historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals) below. |
-| `Process Interval`<br/>Slider | Defines the replay speed of an active historical replay. The speed can be controlled while the replay is in progress allowing the data interval to be slower when the slider value is smaller, i.e., to the left, and faster then the slider value is larger, i.e., to the right.
+| `Process Interval`<br/>Slider | Defines the replay speed of an active historical replay. The speed can be controlled while the replay is in progress allowing the data interval to be slower when the slider value is smaller, i.e., to the left, and faster when the slider value is larger, i.e., to the right.
 | `Replay`<br/>Button | Attempts to start a historical data replay on an already active connection to an STTP data publisher. Note that not all data publishers will be archiving data and/or support historical replay. When the historical replay completes, or the data publisher does not support the function, the connection will automatically transition back to a real-time subscription. |
 
 ### Historical Replay Time Intervals
@@ -52,9 +52,9 @@ Note that hot keys only work when [Subscription Controls](#subscription-controls
 
 ## Settings File
 
-Configurable settings for the STTP Connection Tester are define in the text-based `settings.ini` file.
+Configurable settings for the STTP Connection Tester are defined in the text-based `settings.ini` file.
 
-Default location of `settings.ini` on Windows deployments can be found in the user's local low application data folder:
+Default location of `settings.ini` on Windows deployments can be found in the user's _local low_ application data folder:
 
 ```
 %appdata%\..\LocalLow\Grid Protection Alliance\STTP Connection Tester\
@@ -65,8 +65,8 @@ The settings are defined as follows:
 | Setting | Default Value | Description |
 | :-----: | :-----------: | :---------- |
 | `AutoInitiateConnection` | `False` | When value is `True`, connection to last defined connection string will be attempted on startup. |
-| `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for start time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
-| `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for stop time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
+| `StartTime` | `*-5M` | Last UI defined timestamp or relative interval to now for _start_ time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
+| `StopTime` | `*` | Last UI defined Last timestamp or relative interval to now for _stop_ time of historical replay, see [Historical Replay Time Intervals](#historical-replay-time-intervals). |
 | `FilterExpression` | `FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'` | Last UI defined filter expression that defines which points to select. See [STTP Filter Expressions](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md) documentation. |
 | `Title` | `STTP Connection Tester` | Title that appears above the graph plane. |
 | `MaxSignals` | `30` | Maximum number of signals that will be trended. |
