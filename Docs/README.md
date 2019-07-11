@@ -39,7 +39,7 @@ Note that positive values are also supported, for example,
 
 ## Hot Keys
 
-Note that hot keys only work when [Subscription Controls](#subscription-controls) dialog is minimized.
+Note that hot keys may only work when [Subscription Controls](#subscription-controls) dialog is minimized.
 
 |  Key  | Action              | Version Available |
 | :---: | :------------------ | :---------------: |
