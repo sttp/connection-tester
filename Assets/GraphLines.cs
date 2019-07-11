@@ -1079,10 +1079,9 @@ namespace ConnectionTester
             ClearSubscription();
 
             if (m_connected)
-            {
                 UpdateStatus("Terminating current connection...");
-                m_subscriber?.Disconnect();
-            }
+
+            m_subscriber?.Disconnect();
         }
 
         private void EndApplication()
