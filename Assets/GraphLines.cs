@@ -50,17 +50,24 @@ namespace ConnectionTester
         #region [ Static ]
 
         private static Action s_editorExitingPlayMode;
+        private static string s_pluginPath;
 
         static GraphLines()
         {
         #if !UNITY_EDITOR
             // Setup path at run-time to load proper version of native sttp.net.lib.dll
             string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
-            string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-            string dllPath = Path.Combine(dataPath, "Plugins");
+            string pluginPath = Path.Combine(Path.GetFullPath("."), "STTP Connection Tester_Data", "Plugins");
 
-            if (!currentPath?.Contains(dllPath) ?? false)
-                Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
+            if (IntPtr.Size == 8)
+                pluginPath = Path.Combine(pluginPath, "x86_64");
+            else
+                pluginPath = Path.Combine(pluginPath, "x86");
+
+            s_pluginPath = pluginPath;
+
+            if (!currentPath?.Contains(pluginPath) ?? false)
+                Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{pluginPath}", EnvironmentVariableTarget.Process);
         #endif
         }
 
@@ -649,7 +656,7 @@ namespace ConnectionTester
             GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
             versionLabelStyle.fontSize = 11 * m_guiSize;
             versionLabelStyle.alignment = TextAnchor.UpperLeft;
-            GUILayout.Label($"v{m_version}", versionLabelStyle);
+            GUILayout.Label($"v{m_version} [{s_pluginPath}]", versionLabelStyle);
         }
 
         private void DrawControlsWindow(int windowID)

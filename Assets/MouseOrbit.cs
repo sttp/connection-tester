@@ -88,7 +88,7 @@ namespace UnityGSF
                     {
                         buttonDown = false;
                     }
-
+                    
                     // Only start rotation after a few frames - this allows human
                     // multi-touch interaction a moment to engage since it's rare that
                     // two fingers will actually hit the screen at the exact same time
@@ -102,7 +102,7 @@ namespace UnityGSF
                         downCount = 0;
                         rotate = false;
                     }
-
+                    
                     if (rotate)
                     {
                         if (Input.mousePosition.x > minX)
