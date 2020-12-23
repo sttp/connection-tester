@@ -38,13 +38,13 @@ namespace ConnectionTester.Editor
             string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
             string dataPath = Application.dataPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
         #if UNITY_EDITOR_32
-            string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86");
+            string pluginPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86");
         #else
-            string dllPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
+            string pluginPath = Path.Combine(dataPath, "sttp.net", "Plugins", "x86_64");
         #endif
 
-            if (!currentPath?.Contains(dllPath) ?? false)
-                Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{dllPath}", EnvironmentVariableTarget.Process);
+            if (!currentPath?.Contains(pluginPath) ?? false)
+                Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{pluginPath}", EnvironmentVariableTarget.Process);
 
             EditorApplication.playModeStateChanged += PlayModeStateChangedHandler;
         }

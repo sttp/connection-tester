@@ -50,7 +50,6 @@ namespace ConnectionTester
         #region [ Static ]
 
         private static Action s_editorExitingPlayMode;
-        private static string s_pluginPath;
 
         static GraphLines()
         {
@@ -63,8 +62,6 @@ namespace ConnectionTester
                 pluginPath = Path.Combine(pluginPath, "x86_64");
             else
                 pluginPath = Path.Combine(pluginPath, "x86");
-
-            s_pluginPath = pluginPath;
 
             if (!currentPath?.Contains(pluginPath) ?? false)
                 Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{pluginPath}", EnvironmentVariableTarget.Process);
@@ -656,7 +653,7 @@ namespace ConnectionTester
             GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
             versionLabelStyle.fontSize = 11 * m_guiSize;
             versionLabelStyle.alignment = TextAnchor.UpperLeft;
-            GUILayout.Label($"v{m_version} [{s_pluginPath}]", versionLabelStyle);
+            GUILayout.Label($"v{m_version}", versionLabelStyle);
         }
 
         private void DrawControlsWindow(int windowID)
