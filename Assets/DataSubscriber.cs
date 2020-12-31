@@ -28,6 +28,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 // ReSharper disable once CheckNamespace
+// ReSharper disable ArrangeObjectCreationWhenTypeEvident
 namespace ConnectionTester
 {
     public class DataSubscriber : SubscriberInstance
@@ -56,31 +57,23 @@ namespace ConnectionTester
             connector.MaxRetryInterval = 6000;
         }
 
-        protected override void StatusMessage(string message)
-        {
+        protected override void StatusMessage(string message) => 
             m_parent.UpdateStatus(message);
-        }
 
-        protected override void ErrorMessage(string message)
-        {
+        protected override void ErrorMessage(string message) => 
             StatusMessage($"ERROR: {message}");
-        }
 
-        protected override void DataStartTime(DateTime startTime)
-        {
-            StatusMessage($"Received first measurement at timestamp {startTime:yyyy-MM-dd HH:mm:ss.fff}");
-        }
+        protected override void DataStartTime(DateTime startTime) => 
+            StatusMessage($"Received first measurement at timestamp \"{startTime:yyyy-MM-dd HH:mm:ss.fff}\"...");
 
         protected override void ReceivedMetadata(ByteBuffer payload)
         {
-            StatusMessage($"Received {payload.Count} bytes of metadata, parsing...");
+            StatusMessage($"Received {payload.Count:N0} bytes of metadata, parsing...");
             base.ReceivedMetadata(payload);
         }
 
-        protected override void ParsedMetadata()
-        {
+        protected override void ParsedMetadata() => 
             StatusMessage("Metadata successfully parsed.");
-        }
 
         public override void SubscriptionUpdated(SignalIndexCache signalIndexCache)
         {
@@ -95,25 +88,25 @@ namespace ConnectionTester
 
             foreach (MeasurementMetadata measurement in measurementMetadata.Values)
             {
-                if (signalIDs.Contains(measurement.SignalID) && deviceMetadata.TryGetValue(measurement.DeviceAcronym, out DeviceMetadata device))
+                if (!signalIDs.Contains(measurement.SignalID) || !deviceMetadata.TryGetValue(measurement.DeviceAcronym, out DeviceMetadata device))
+                    continue;
+
+                if (!devicePhasors.TryGetValue(device.Acronym, out Dictionary<int, PhasorReference> phasors))
                 {
-                    if (!devicePhasors.TryGetValue(device.Acronym, out Dictionary<int, PhasorReference> phasors))
-                    {
-                        phasors = new Dictionary<int, PhasorReference>();
+                    phasors = new Dictionary<int, PhasorReference>();
 
-                        foreach (PhasorReference phasor in device.Phasors)
-                            phasors[phasor.Phasor.SourceIndex] = phasor;
+                    foreach (PhasorReference phasor in device.Phasors)
+                        phasors[phasor.Phasor.SourceIndex] = phasor;
 
-                        devicePhasors[device.Acronym] = phasors;
-                    }
-
-                    SignalKind signalKind = measurement.Reference.Kind;
-
-                    if (phasors.TryGetValue(measurement.PhasorSourceIndex, out PhasorReference phasorReference))
-                        m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind, phasorReference.Phasor.Type[0]);
-                    else
-                        m_signalTypeAcronyms[measurement.SignalID] = Common.GetSignalTypeAcronym(signalKind);
+                    devicePhasors[device.Acronym] = phasors;
                 }
+
+                SignalKind signalKind = measurement.Reference.Kind;
+
+                if (phasors.TryGetValue(measurement.PhasorSourceIndex, out PhasorReference phasorReference))
+                    m_signalTypeAcronyms[measurement.SignalID] = sttp.Common.GetSignalTypeAcronym(signalKind, phasorReference.Phasor.Type[0]);
+                else
+                    m_signalTypeAcronyms[measurement.SignalID] = sttp.Common.GetSignalTypeAcronym(signalKind);
             }
 
             m_parent.InitializeSubscription(signalIDs.ToArray());
@@ -131,10 +124,8 @@ namespace ConnectionTester
             m_parent.EnqueData(queue);
         }
 
-        protected override void ConfigurationChanged()
-        {
+        protected override void ConfigurationChanged() => 
             StatusMessage("Configuration change detected. Metadata refresh requested.");
-        }
 
         protected override void HistoricalReadComplete()
         {

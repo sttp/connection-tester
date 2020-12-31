@@ -26,7 +26,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 
+// ReSharper disable ArrangeObjectCreationWhenTypeEvident
+// ReSharper disable ConvertToUsingDeclaration
 // ReSharper disable once CheckNamespace
+#pragma warning disable IDE0063
+
 namespace UnityGSF
 {
     public class IniFile
@@ -43,12 +47,8 @@ namespace UnityGSF
 
         public IniFile(string fileName)
         {
-            if ((object)fileName == null)
-                throw new ArgumentNullException(nameof(fileName));
-
-            m_fileName = fileName;
+            m_fileName = fileName ?? throw new ArgumentNullException(nameof(fileName));
             m_iniData = new ConcurrentDictionary<string, ConcurrentDictionary<string, string>>(StringComparer.CurrentCultureIgnoreCase);
-
             Load();
         }
 
@@ -90,10 +90,10 @@ namespace UnityGSF
 
             using (StreamReader reader = new StreamReader(m_fileName))
             {
-                string line = reader.ReadLine();
                 ConcurrentDictionary<string, string> section = null;
+                string line = reader.ReadLine();
 
-                while ((object)line != null)
+                while (!(line is null))
                 {
                     line = RemoveComments(line);
 
@@ -110,12 +110,12 @@ namespace UnityGSF
                             {
                                 string sectionName = line.Substring(startBracketIndex + 1, endBracketIndex - 1);
 
-                                if (!string.IsNullOrEmpty(sectionName))
+                                if (!string.IsNullOrWhiteSpace(sectionName))
                                     section = m_iniData.GetOrAdd(sectionName, CreateNewSection);
                             }
                         }
 
-                        if ((object)section == null)
+                        if (section is null)
                             throw new InvalidOperationException("INI file did not begin with a [section]");
 
                         // Check for key/value pair
@@ -136,14 +136,11 @@ namespace UnityGSF
         }
 
         // Saving INI file will strip comments - sorry :-(
-        public void Save()
-        {
-            Save(m_fileName);
-        }
+        public void Save() => Save(m_fileName);
 
         public void Save(string fileName)
         {
-            if ((object)fileName == null)
+            if (fileName is null)
                 throw new ArgumentNullException(nameof(fileName));
 
             using (StreamWriter writer = new StreamWriter(fileName))
@@ -153,19 +150,15 @@ namespace UnityGSF
                     writer.WriteLine("[{0}]", section.Key);
 
                     foreach (KeyValuePair<string, string> entry in section.Value)
-                    {
                         writer.WriteLine("{0} = {1}", entry.Key, entry.Value);
-                    }
 
                     writer.WriteLine();
                 }
             }
         }
 
-        private ConcurrentDictionary<string, string> CreateNewSection(string sectionName)
-        {
-            return new ConcurrentDictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
-        }
+        private static ConcurrentDictionary<string, string> CreateNewSection(string sectionName) => 
+            new ConcurrentDictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
 
         #endregion
 

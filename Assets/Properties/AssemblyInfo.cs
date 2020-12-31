@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 // Informational attributes.
 
 [assembly: AssemblyCompany("Grid Protection Alliance")]
-[assembly: AssemblyCopyright("Copyright © 2019.  All Rights Reserved.")]
+[assembly: AssemblyCopyright("Copyright © 2020.  All Rights Reserved")]
 [assembly: AssemblyProduct("STTP")]
 
 // Assembly manifest attributes.
@@ -14,8 +14,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("Release Build")]
 #endif
 
-[assembly: AssemblyDescription("STTP Connection Tester Application.")]
+[assembly: AssemblyDescription("STTP Connection Tester Application")]
 [assembly: AssemblyTitle("STTP Connection Tester")]
+[assembly: AssemblyMetadata("TargetName", "STTPConnectionTester")]
 
 // Other configuration attributes.
 

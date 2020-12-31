@@ -38,15 +38,11 @@ namespace UnityGSF
         // Execute any queued methods on UI thread...
         protected void FixedUpdate()
         {
-            Action<object[]> method;
-            ManualResetEventSlim resetEvent;
-            object[] args;
-
-            while (m_methodCalls.TryDequeue(out Tuple<Action<object[]>, object[], ManualResetEventSlim> methodCall))
+            while (s_methodCalls.TryDequeue(out Tuple<Action<object[]>, object[], ManualResetEventSlim> methodCall))
             {
-                method = methodCall.Item1;
-                args = methodCall.Item2;
-                resetEvent = methodCall.Item3;
+                Action<object[]> method = methodCall.Item1;
+                object[] args = methodCall.Item2;
+                ManualResetEventSlim resetEvent = methodCall.Item3;
 
                 method(args);
                 resetEvent.Set();
@@ -60,13 +56,11 @@ namespace UnityGSF
         // Static Fields
 
         // Queue of methods and parameters
-        private static readonly ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>> m_methodCalls;
+        private static readonly ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>> s_methodCalls;
 
         // Static Constructor
-        static UIThread()
-        {
-            m_methodCalls = new ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>>();
-        }
+        static UIThread() => 
+            s_methodCalls = new ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>>();
 
         // Static Methods
 
@@ -79,7 +73,7 @@ namespace UnityGSF
         {
             ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
 
-            m_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, null, resetEvent));
+            s_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, null, resetEvent));
 
             return resetEvent.WaitHandle;
         }
@@ -94,7 +88,7 @@ namespace UnityGSF
         {
             ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
 
-            m_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, args, resetEvent));
+            s_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, args, resetEvent));
 
             return resetEvent.WaitHandle;
         }

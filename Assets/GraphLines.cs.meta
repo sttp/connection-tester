@@ -1,8 +1,16 @@
 fileFormatVersion: 2
 guid: 5376955a930828b49877866a10c8469b
 MonoImporter:
+  externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - LineMaterial: {instanceID: 0}
+  - Target: {instanceID: 0}
+  - LegendMesh: {instanceID: 0}
+  - StatusMesh: {instanceID: 0}
+  - UISkin: {fileID: 11400000, guid: a8feba4a1b5a77442a3ab163cc78c228, type: 2}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 
+  assetBundleName: 
+  assetBundleVariant: 

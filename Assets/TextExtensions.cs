@@ -23,10 +23,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using UnityEngine;
 
+// ReSharper disable ArrangeObjectCreationWhenTypeEvident
 // ReSharper disable once CheckNamespace
 namespace UnityGSF
 {
@@ -38,34 +38,26 @@ namespace UnityGSF
         /// </summary>
         /// <param name='mesh'>The text mesh to update.</param>
         /// <param name='text'>The new text to apply to the mesh.</param>
-        public static void UpdateText(this TextMesh mesh, string text)
-        {
+        public static void UpdateText(this TextMesh mesh, string text) => 
             UIThread.Invoke(UpdateText, mesh, text);
-        }
 
         // Text updates must occur on main UI thread
         private static void UpdateText(object[] args)
         {
-            if ((object)args == null || args.Length < 2)
+            if (args is null || args.Length < 2)
                 return;
 
-            TextMesh mesh = args[0] as TextMesh;
-            string text = args[1] as string;
-
-            if ((object)mesh != null && (object)text != null)
+            if (args[0] is TextMesh mesh && args[1] is string text)
                 mesh.text = text;
         }
-
 
         /// <summary>
         /// Encodes the specified Unicode character in proper Regular Expression format.
         /// </summary>
         /// <param name="item">Unicode character to encode in Regular Expression format.</param>
         /// <returns>Specified Unicode character in proper Regular Expression format.</returns>
-        public static string RegexEncode(this char item)
-        {
-            return "\\u" + Convert.ToUInt16(item).ToString("x").PadLeft(4, '0');
-        }
+        public static string RegexEncode(this char item) =>
+            $"\\u{Convert.ToUInt16(item).ToString("x").PadLeft(4, '0')}";
 
         /// <summary>
         /// Parses key/value pair expressions from a string. Parameter pairs are delimited by <paramref name="keyValueDelimiter"/>
@@ -99,10 +91,9 @@ namespace UnityGSF
         /// <paramref name="ignoreDuplicateKeys"/> is set to <c>false</c>.</exception>
         /// <exception cref="FormatException">Total nested key/value pair expressions are mismatched -or- encountered
         /// <paramref name="endValueDelimiter"/> before <paramref name="startValueDelimiter"/>.</exception>
-        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         public static Dictionary<string, string> ParseKeyValuePairs(this string value, char parameterDelimiter = ';', char keyValueDelimiter = '=', char startValueDelimiter = '{', char endValueDelimiter = '}', bool ignoreDuplicateKeys = true)
         {
-            if (value == null)
+            if (value is null)
                 throw new ArgumentNullException(nameof(value));
 
             if (parameterDelimiter == keyValueDelimiter ||
@@ -120,21 +111,16 @@ namespace UnityGSF
             string escapedStartValueDelimiter = startValueDelimiter.RegexEncode();
             string escapedEndValueDelimiter = endValueDelimiter.RegexEncode();
             string backslashDelimiter = '\\'.RegexEncode();
-            string[] elements;
-            string key, unescapedValue;
             bool valueEscaped = false;
             int delimiterDepth = 0;
-            char character;
 
             // Escape any parameter or key/value delimiters within tagged value sequences
             //      For example, the following string:
             //          "normalKVP=-1; nestedKVP={p1=true; p2=false}")
             //      would be encoded as:
             //          "normalKVP=-1; nestedKVP=p1\\u003dtrue\\u003b p2\\u003dfalse")
-            for (int x = 0; x < value.Length; x++)
+            foreach (char character in value)
             {
-                character = value[x];
-
                 if (character == startValueDelimiter)
                 {
                     if (!valueEscaped)
@@ -199,42 +185,42 @@ namespace UnityGSF
                 if (valueEscaped)
                     delimiterDepth = 1;
 
-                throw new FormatException($"Failed to parse key/value pairs: invalid delimiter mismatch. Encountered more {(delimiterDepth > 0 ? "start value delimiters \'" + startValueDelimiter + "\'" : "end value delimiters \'" + endValueDelimiter + "\'")} than {(delimiterDepth < 0 ? "start value delimiters \'" + startValueDelimiter + "\'" : "end value delimiters \'" + endValueDelimiter + "\'")}.");
+                throw new FormatException($"Failed to parse key/value pairs: invalid delimiter mismatch. Encountered more {(delimiterDepth > 0 ? $"start value delimiters '{startValueDelimiter}'" : $"end value delimiters '{endValueDelimiter}'")} than {(delimiterDepth < 0 ? $"start value delimiters '{startValueDelimiter}'" : $"end value delimiters '{endValueDelimiter}'")}.");
             }
 
             // Parse key/value pairs from escaped value
             foreach (string parameter in escapedValue.ToString().Split(parameterDelimiter))
             {
                 // Parse out parameter's key/value elements
-                elements = parameter.Split(keyValueDelimiter);
+                string[] elements = parameter.Split(keyValueDelimiter);
 
-                if (elements.Length == 2)
+                if (elements.Length != 2)
+                    continue;
+
+                // Get key expression
+                string key = elements[0].Trim();
+
+                // Get unescaped value expression
+                string unescapedValue = elements[1].Trim().
+                    Replace(escapedParameterDelimiter, parameterDelimiter.ToString()).
+                    Replace(escapedKeyValueDelimiter, keyValueDelimiter.ToString()).
+                    Replace(escapedStartValueDelimiter, startValueDelimiter.ToString()).
+                    Replace(escapedEndValueDelimiter, endValueDelimiter.ToString()).
+                    Replace(backslashDelimiter, "\\");
+
+                // Add key/value pair to dictionary
+                if (ignoreDuplicateKeys)
                 {
-                    // Get key expression
-                    key = elements[0].Trim();
+                    // Add or replace key elements with unescaped value
+                    keyValuePairs[key] = unescapedValue;
+                }
+                else
+                {
+                    // Add key elements with unescaped value throwing an exception for encountered duplicate keys
+                    if (keyValuePairs.ContainsKey(key))
+                        throw new ArgumentException($"Failed to parse key/value pairs: duplicate key encountered. Key \"{key}\" is not unique within the string: \"{value}\"");
 
-                    // Get unescaped value expression
-                    unescapedValue = elements[1].Trim().
-                        Replace(escapedParameterDelimiter, parameterDelimiter.ToString()).
-                        Replace(escapedKeyValueDelimiter, keyValueDelimiter.ToString()).
-                        Replace(escapedStartValueDelimiter, startValueDelimiter.ToString()).
-                        Replace(escapedEndValueDelimiter, endValueDelimiter.ToString()).
-                        Replace(backslashDelimiter, "\\");
-
-                    // Add key/value pair to dictionary
-                    if (ignoreDuplicateKeys)
-                    {
-                        // Add or replace key elements with unescaped value
-                        keyValuePairs[key] = unescapedValue;
-                    }
-                    else
-                    {
-                        // Add key elements with unescaped value throwing an exception for encountered duplicate keys
-                        if (keyValuePairs.ContainsKey(key))
-                            throw new ArgumentException($"Failed to parse key/value pairs: duplicate key encountered. Key \"{key}\" is not unique within the string: \"{value}\"");
-
-                        keyValuePairs.Add(key, unescapedValue);
-                    }
+                    keyValuePairs.Add(key, unescapedValue);
                 }
             }
 
@@ -253,21 +239,47 @@ namespace UnityGSF
             if (segmentSize <= 0)
                 throw new ArgumentOutOfRangeException(nameof(segmentSize), "segmentSize must be greater than zero.");
 
-            if (string.IsNullOrEmpty(value))
+            if (string.IsNullOrWhiteSpace(value))
                 return new[] { "" };
 
-            int totalSegments = (int)Math.Ceiling(value.Length / (double)segmentSize);
-            string[] segments = new string[totalSegments];
+            List<string> segments = new List<string>();
 
-            for (int x = 0; x < segments.Length; x++)
+            if (value.Contains(" "))
             {
-                if (x * segmentSize + segmentSize >= value.Length)
-                    segments[x] = value.Substring(x * segmentSize);
-                else
-                    segments[x] = value.Substring(x * segmentSize, segmentSize);
+                string[] lines = value.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (string line in lines)
+                {
+                    string[] words = line.Split(new[] { " ", Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+                    string segment = "";
+
+                    foreach (string word in words)
+                    {
+                        if (segment.Length + word.Length > segmentSize)
+                        {
+                            segments.Add(segment.Trim());
+                            segment = "";
+                        }
+
+                        segment += $"{word} ";
+                    }
+
+                    if (segment.Length > 0)
+                        segments.Add(segment.Trim());
+                }
+            }
+            else
+            {
+                int start = 0;
+
+                while (start < value.Length)
+                {
+                    segments.Add(value.Substring(start, Math.Min(segmentSize, value.Length - start)));
+                    start += segmentSize;
+                }
             }
 
-            return segments;
+            return segments.ToArray();
         }
     }
 }

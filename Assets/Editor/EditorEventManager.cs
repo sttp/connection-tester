@@ -24,6 +24,7 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEngine;
 
 // ReSharper disable once CheckNamespace
@@ -53,6 +54,22 @@ namespace ConnectionTester.Editor
         {
             if (state == PlayModeStateChange.ExitingPlayMode)
                 GraphLines.EditorExitingPlayMode();
+        }
+
+        [PostProcessBuild(1)]
+        public static void OnPostprocessBuild(BuildTarget target, string path)
+        {
+            string targetName = Common.GetTargetName();
+
+            switch (target)
+            {
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    targetName += ".exe";
+                    break;
+            }
+
+            File.Move(path, Path.Combine(Path.GetDirectoryName(path) ?? "", targetName));
         }
     }
 }

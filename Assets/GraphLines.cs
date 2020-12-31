@@ -41,7 +41,9 @@ using Debug = UnityEngine.Debug;
 
 // ReSharper disable UnusedMember.Local
 // ReSharper disable IntroduceOptionalParameters.Local
+// ReSharper disable UnusedMemberInSuper.Global
 // ReSharper disable RedundantCast.0
+// ReSharper disable ArrangeObjectCreationWhenTypeEvident
 // ReSharper disable once CheckNamespace
 namespace ConnectionTester
 {
@@ -56,7 +58,7 @@ namespace ConnectionTester
         #if !UNITY_EDITOR
             // Setup path at run-time to load proper version of native sttp.net.lib.dll
             string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
-            string pluginPath = Path.Combine(Path.GetFullPath("."), "STTP Connection Tester_Data", "Plugins");
+            string pluginPath = Path.Combine(Path.GetFullPath("."), $"{Common.GetTargetName()}_Data", "Plugins");
 
             if (IntPtr.Size == 8)
                 pluginPath = Path.Combine(pluginPath, "x86_64");
@@ -160,19 +162,16 @@ namespace ConnectionTester
 
             private void ScaleLinePoints()
             {
-                float unscaledValue;
-                Vector3 point;
-
                 foreach (DataLine line in m_lines)
                 {
                     for (int x = 0; x < line.UnscaledData.Length; x++)
                     {
-                        unscaledValue = line.UnscaledData[x];
+                        float unscaledValue = line.UnscaledData[x];
 
                         if (float.IsNaN(unscaledValue))
                             unscaledValue = MidPoint;
 
-                        point = line.LinePoints[x];
+                        Vector3 point = line.LinePoints[x];
                         point.z = -ScaleValue(unscaledValue);
                         line.LinePoints[x] = point;
                     }
@@ -195,18 +194,20 @@ namespace ConnectionTester
             {
                 ID = id;
                 Index = index;
+                UnscaledData = new float[parent.PointsInLine];
 
-                UnscaledData = new float[parent.m_pointsInLine];
+                m_vector = new VectorLine($"DataLine{index}", new List<Vector3>(parent.PointsInLine), parent.LineMaterial, parent.LineWidth, LineType.Continuous)
+                {
+                    color = parent.LineColors[index % parent.LineColors.Length],
+                    drawTransform = parent.Target
+                };
 
-                m_vector = new VectorLine("DataLine" + index, new List<Vector3>(parent.m_pointsInLine), parent.m_lineMaterial, parent.m_lineWidth, LineType.Continuous);
-                m_vector.color = parent.m_lineColors[index % parent.m_lineColors.Length];
-                m_vector.drawTransform = parent.m_target;
                 m_vector.Draw3DAuto();
 
                 for (int x = 0; x < m_vector.points3.Count; x++)
                 {
                     UnscaledData[x] = float.NaN;
-                    m_vector.points3[x] = new Vector3(Mathf.Lerp(-5.0F, 5.0F, x / (float)m_vector.points3.Count), -((index + 1) * parent.m_lineDepthOffset + 0.05F), 0.0F);
+                    m_vector.points3[x] = new Vector3(Mathf.Lerp(-5.0F, 5.0F, x / (float)m_vector.points3.Count), -((index + 1) * parent.LineDepthOffset + 0.05F), 0.0F);
                 }
             }
 
@@ -228,11 +229,11 @@ namespace ConnectionTester
 
             public void Stop()
             {
-                if ((object)m_vector != null)
-                {
-                    m_vector.StopDrawing3DAuto();
-                    VectorLine.Destroy(ref m_vector);
-                }
+                if (m_vector is null)
+                    return;
+
+                m_vector.StopDrawing3DAuto();
+                VectorLine.Destroy(ref m_vector);
             }
 
             public void UpdateValue(float newValue)
@@ -254,16 +255,20 @@ namespace ConnectionTester
 
             public LegendLine(GraphLines parent, Guid id, int index, Color color)
             {
-                Transform transform = parent.m_legendMesh.transform;
+                Transform transform = parent.LegendMesh.transform;
                 Vector3 position = transform.position;
 
                 ID = id;
-                m_vector = new VectorLine("LegendLine" + index, new List<Vector3>(2), parent.m_lineMaterial, parent.m_lineWidth, LineType.Discrete);
-                m_vector.color = color;
-                m_vector.drawTransform = transform;
+                
+                m_vector = new VectorLine($"LegendLine{index}", new List<Vector3>(2), parent.LineMaterial, parent.LineWidth, LineType.Discrete)
+                {
+                    color = color, 
+                    drawTransform = transform
+                };
+                
                 m_vector.Draw3DAuto();
 
-                float spacing = parent.m_legendMesh.characterSize * 1.5F;
+                float spacing = parent.LegendMesh.characterSize * 1.96F;
 
                 // Position legend line relative to text descriptions
                 Vector3 point1 = new Vector3(-2.0F, -(spacing / 2.0F + index * spacing), -position.z);
@@ -277,11 +282,11 @@ namespace ConnectionTester
 
             public void Stop()
             {
-                if ((object)m_vector != null)
-                {
-                    m_vector.StopDrawing3DAuto();
-                    VectorLine.Destroy(ref m_vector);
-                }
+                if (m_vector is null)
+                    return;
+
+                m_vector.StopDrawing3DAuto();
+                VectorLine.Destroy(ref m_vector);
             }
         }
 
@@ -302,7 +307,7 @@ namespace ConnectionTester
                 if (propertyName.Equals("SignalTypeAcronym", StringComparison.OrdinalIgnoreCase))
                     return m_signalTypeAcronym;
 
-                return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? "<" + propertyName + ">";
+                return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? $"<{propertyName}>";
             }
         }
 
@@ -347,26 +352,29 @@ namespace ConnectionTester
         private Vector2 m_scrollPosition;
         private int m_guiSize = 1;
         private long m_lastKeyCheck;
+        private bool m_shiftIsDown;
         private bool m_connected;
+        private bool m_connecting;
         private bool m_subscribed;
         private bool m_shuttingDown;
 
         // Public fields exposed to Unity UI interface
-        public string m_title = "STTP Connection Tester";
-        public string m_connectionString = "server=localhost:7165;";
-        public string m_filterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
-        public Texture m_lineMaterial;
-        public int m_lineWidth = 4;
-        public float m_lineDepthOffset = 0.75F;
-        public int m_pointsInLine = 50;
-        public Transform m_target;
-        public float m_graphScale = 5.0F;
-        public Color[] m_lineColors = { Color.blue, Color.yellow, Color.red, Color.white, Color.cyan, Color.magenta, Color.black, Color.gray };
-        public TextMesh m_legendMesh;
-        public TextMesh m_statusMesh;
-        public int m_statusRows = 4;
-        public double m_statusDisplayInterval = 10000.0D;
-        public string m_legendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
+        public string Title = "STTP Connection Tester";
+        public string ConnectionString = "server=localhost:7165;";
+        public string FilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
+        public Texture LineMaterial;
+        public int LineWidth = 4;
+        public float LineDepthOffset = 0.75F;
+        public int PointsInLine = 50;
+        public Transform Target;
+        public float GraphScale = 5.0F;
+        public Color[] LineColors = { Color.blue, Color.yellow, Color.red, Color.white, Color.cyan, Color.magenta, Color.black, Color.gray };
+        public TextMesh LegendMesh;
+        public TextMesh StatusMesh;
+        public int StatusRows = 4;
+        public double StatusDisplayInterval = 10000.0D;
+        public string LegendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
+        public GUISkin UISkin;
 
         #endregion
 
@@ -397,8 +405,8 @@ namespace ConnectionTester
 
         protected void Awake()
         {
-            string defaultIniPath = Application.dataPath + "/" + IniFileName;
-            string userIniPath = Application.persistentDataPath + "/" + IniFileName;
+            string defaultIniPath = $"{Application.dataPath}/{IniFileName}";
+            string userIniPath = $"{Application.persistentDataPath}/{IniFileName}";
 
             // Copy INI file with default settings to user INI file if one doesn't exist
             if (File.Exists(defaultIniPath) && !File.Exists(userIniPath))
@@ -407,15 +415,16 @@ namespace ConnectionTester
             // Load settings from INI file
             IniFile iniFile = new IniFile(userIniPath);
 
-            m_title = iniFile["Settings", "Title", m_title];
-            m_connectionString = iniFile["Settings", "ConnectionString", m_connectionString];
-            m_filterExpression = iniFile["Settings", "FilterExpression", m_filterExpression];
-            m_lineWidth = int.Parse(iniFile["Settings", "LineWidth", m_lineWidth.ToString()]);
-            m_lineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", m_lineDepthOffset.ToString(CultureInfo.InvariantCulture)]);
-            m_pointsInLine = int.Parse(iniFile["Settings", "PointsInLine", m_pointsInLine.ToString()]);
-            m_legendFormat = iniFile["Settings", "LegendFormat", m_legendFormat];
-            m_statusRows = int.Parse(iniFile["Settings", "StatusRows", m_statusRows.ToString()]);
-            m_statusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", m_statusDisplayInterval.ToString(CultureInfo.InvariantCulture)]);
+            Title = iniFile["Settings", "Title", Title];
+            ConnectionString = iniFile["Settings", "ConnectionString", ConnectionString];
+            FilterExpression = iniFile["Settings", "FilterExpression", FilterExpression];
+            LineWidth = int.Parse(iniFile["Settings", "LineWidth", LineWidth.ToString()]);
+            LineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", LineDepthOffset.ToString(CultureInfo.InvariantCulture)]);
+            PointsInLine = int.Parse(iniFile["Settings", "PointsInLine", PointsInLine.ToString()]);
+            LegendFormat = iniFile["Settings", "LegendFormat", LegendFormat];
+            StatusRows = int.Parse(iniFile["Settings", "StatusRows", StatusRows.ToString()]);
+            StatusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", StatusDisplayInterval.ToString(CultureInfo.InvariantCulture)]);
+
             m_startTime = iniFile["Settings", "StartTime", m_startTime];
             m_stopTime = iniFile["Settings", "StopTime", m_stopTime];
             m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", m_maxSignals.ToString()]);
@@ -437,7 +446,9 @@ namespace ConnectionTester
             }
             catch (Exception ex)
             {
-                Debug.Log("ERROR: " + ex.Message);
+            #if UNITY_EDITOR
+                Debug.Log($"ERROR: {ex.Message}");
+            #endif
             }
 
             // Attempt to reference active mouse orbit script
@@ -450,29 +461,24 @@ namespace ConnectionTester
             m_legendLines = new List<LegendLine>();
 
             // Initialize status rows and timer to hide status after a period of no updates
-            m_statusText = new string[m_statusRows];
+            m_statusText = new string[StatusRows];
 
-            for (int i = 0; i < m_statusRows; i++)
+            for (int i = 0; i < StatusRows; i++)
                 m_statusText[i] = "";
 
-            m_hideStatusTimer = new System.Timers.Timer();
-            m_hideStatusTimer.AutoReset = false;
-            m_hideStatusTimer.Interval = m_statusDisplayInterval;
+            m_hideStatusTimer = new System.Timers.Timer
+            {
+                AutoReset = false,
+                Interval = StatusDisplayInterval
+            };
+            
             m_hideStatusTimer.Elapsed += m_hideStatusTimer_Elapsed;
 
             // For mobile applications we use a larger GUI font size.
             // Other deployments might benefit from this as well - larger
             // size modes may work also but are not tested
-            switch (Application.platform)
-            {
-                case RuntimePlatform.Android:
-                case RuntimePlatform.IPhonePlayer:
-                    if (Screen.height <= 720)
-                        m_guiSize = 2;  // 720P
-                    else
-                        m_guiSize = 3;  // 1080P or higher
-                    break;
-            }
+            if (Application.platform == RuntimePlatform.Android || Application.platform == RuntimePlatform.IPhonePlayer)
+                m_guiSize = Screen.height <= 720 ? 2 : 3;
 
             // Create a solid background for the control window
             m_controlWindowTexture = new Texture2D(1, 1);
@@ -488,34 +494,42 @@ namespace ConnectionTester
             // Attempt to update title
             GameObject titleObject = GameObject.Find("Title");
 
-            if ((object)titleObject != null)
+            if (!(titleObject is null))
             {
                 TextMesh titleMesh = titleObject.GetComponent<TextMesh>();
 
-                if ((object)titleMesh != null)
-                    titleMesh.text = m_title;
+                if (!(titleMesh is null))
+                    titleMesh.text = Title;
             }
 
             // If 3D text legend mesh property was not defined, attempt to look it up by name
-            if ((object)m_legendMesh == null)
+            if (LegendMesh is null)
             {
                 GameObject legendObject = GameObject.Find("Legend");
 
-                if ((object)legendObject != null)
-                    m_legendMesh = legendObject.GetComponent<TextMesh>();
+                if (!(legendObject is null))
+                    LegendMesh = legendObject.GetComponent<TextMesh>();
             }
 
             // If 3D text status mesh property was not defined, attempt to look it up by name
-            if ((object)m_statusMesh == null)
+            if (StatusMesh is null)
             {
                 GameObject statusObject = GameObject.Find("Status");
 
-                if ((object)statusObject != null)
-                    m_statusMesh = statusObject.GetComponent<TextMesh>();
+                if (!(statusObject is null))
+                    StatusMesh = statusObject.GetComponent<TextMesh>();
             }
 
-            UpdateStatus("Press '+' to increase font size, '-' to decrease.");
-            UpdateStatus("Press 'F1' for help page.");
+            Physics.queriesHitTriggers = true;
+
+            const string HelpText =
+                "Press '+' to increase font size, '-' to decrease.\r\n" +
+                "Press 'C' to connect, 'D' to disconnect.\r\n" +
+                "Press 'R' to restore default graph location.\r\n" +
+                "Press 'M' to toggle status message display.\r\n" +
+                "Press 'F1' for help page.";
+
+            UpdateStatus(HelpText, 30000);
 
             if (m_autoInitiateConnection)
                 InitiateConnection();
@@ -531,7 +545,7 @@ namespace ConnectionTester
             if (m_subscribed)
             {
                 // Make sure lines are initialized before trying to draw them
-                if ((object)m_linesInitializedWaitHandle != null)
+                if (!(m_linesInitializedWaitHandle is null))
                 {
                     // Only wait one millisecond then try again at next update
                     if (m_linesInitializedWaitHandle.WaitOne(1))
@@ -564,7 +578,7 @@ namespace ConnectionTester
                 int orgGuiSize = m_guiSize;
 
                 // Plus / Minus keys will increase / decrease font size
-                if (Input.GetKey(KeyCode.Plus) || Input.GetKey(KeyCode.KeypadPlus))
+                if (Input.GetKey(KeyCode.Plus) || Input.GetKey(KeyCode.KeypadPlus) || Input.GetKey(KeyCode.Equals) && m_shiftIsDown)
                     m_guiSize++;
                 else if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus))
                     m_guiSize--;
@@ -601,6 +615,24 @@ namespace ConnectionTester
                     m_lastKeyCheck = currentTicks;
                     TerminateConnection();
                 }
+
+                // Restore default graph location with "R" key
+                if (Input.GetKey(KeyCode.R))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    m_mouseOrbitScript.Restore = true;
+                }
+
+                // Toggle message display with "M" key
+                if (Input.GetKey(KeyCode.M))
+                {
+                    m_lastKeyCheck = currentTicks;
+
+                    if (string.IsNullOrWhiteSpace(StatusMesh.text))
+                        UpdateStatus(null, Timeout.Infinite);
+                    else
+                        StatusMesh.UpdateText("");
+                }
             }
 
             // Exit application with "ESC" key
@@ -612,6 +644,7 @@ namespace ConnectionTester
         {
             Rect controlWindowLocation = m_controlWindowMinimized ? m_controlWindowMinimizedLocation : m_controlWindowActiveLocation;
 
+            GUI.skin = UISkin;
             GUIStyle windowStyle = new GUIStyle(GUI.skin.window);
             windowStyle.normal.background = m_controlWindowTexture;
             windowStyle.onNormal = windowStyle.normal;
@@ -637,9 +670,11 @@ namespace ConnectionTester
                     m_controlWindowMinimized = true;
             }
 
+            m_shiftIsDown = e.shift;
+
             // Mouse based camera orbit is disabled while control window is active
-            if ((object)m_mouseOrbitScript != null)
-                m_mouseOrbitScript.isActive = m_controlWindowMinimized;
+            if (!(m_mouseOrbitScript is null))
+                m_mouseOrbitScript.IsActive = m_controlWindowMinimized;
 
             // Add a close application button on the main screen, this is handy
             // on mobile deployments where hitting ESC button is not so easy
@@ -709,7 +744,7 @@ namespace ConnectionTester
             GUILayout.BeginHorizontal();
 
             GUILayout.Label(" Connection String:", labelStyle, GUILayout.Width(112 * widthScalar));
-            m_connectionString = GUILayout.TextField(m_connectionString, textFieldStyle);
+            ConnectionString = GUILayout.TextField(ConnectionString, textFieldStyle);
 
             // Reconnect using new connection string
             if (GUILayout.Button("Connect", buttonStyle, GUILayout.Width(100 * widthScalar)))
@@ -721,7 +756,7 @@ namespace ConnectionTester
             GUILayout.BeginHorizontal();
 
             GUILayout.Label(" Filter Expression:", labelStyle, GUILayout.Width(108 * widthScalar));
-            m_filterExpression = GUILayout.TextField(m_filterExpression, textFieldStyle);
+            FilterExpression = GUILayout.TextField(FilterExpression, textFieldStyle);
 
             // Resubscribe using new filter expression
             if (GUILayout.Button("Update", buttonStyle, GUILayout.Width(100 * widthScalar)))
@@ -767,7 +802,7 @@ namespace ConnectionTester
             iniLabelStyle.fontStyle = FontStyle.Italic;
             iniLabelStyle.alignment = TextAnchor.UpperCenter;
 
-            GUILayout.Label($" Settings File = \"{Application.persistentDataPath + "/" + IniFileName}\" - Resolution = {Screen.width} x {Screen.height} - Build Date = {m_buildDate}", iniLabelStyle);
+            GUILayout.Label($" Settings File = \"{Application.persistentDataPath}/{IniFileName}\" - Resolution = {Screen.width} x {Screen.height} - Build Date = {m_buildDate}", iniLabelStyle);
 
             GUILayout.EndHorizontal();
 
@@ -782,7 +817,7 @@ namespace ConnectionTester
             if (count > m_maxSignals)
             {
                 subscribedMeasurementIDs = subscribedMeasurementIDs.Take(m_maxSignals).ToArray();
-                UpdateStatus($"Reduced {count:N0} subscribed measurements to {m_maxSignals:N0}, configured maximum.");
+                UpdateStatus($"WARNING: Reduced {count:N0} subscribed measurements to {m_maxSignals:N0}, current configured maximum.");
             }
 
             // Create a new line for each subscribed measurement, this should be done in
@@ -792,56 +827,61 @@ namespace ConnectionTester
 
         internal void EnqueData(IList<Measurement> measurements) => m_dataQueue.Enqueue(measurements);
 
-        internal void UpdateStatus(string statusText)
+        internal void UpdateStatus(string statusText, int displayInterval = 0)
         {
             StringBuilder cumulativeStatusText = new StringBuilder();
 
-            // Keep a finite list of status updates - rolling older text up
-            for (int i = 0; i < m_statusText.Length - 1; i++)
+            if (string.IsNullOrWhiteSpace(statusText))
             {
-                m_statusText[i] = m_statusText[i + 1];
-                cumulativeStatusText.Append($"{m_statusText[i]}\r\n");
+                cumulativeStatusText.Append(string.Join(Environment.NewLine, m_statusText));
             }
+            else
+            {
+                // Keep a finite list of status updates - rolling older text up
+                for (int i = 0; i < m_statusText.Length - 1; i++)
+                {
+                    m_statusText[i] = m_statusText[i + 1];
+                    cumulativeStatusText.AppendLine(m_statusText[i]);
+                }
 
-            statusText = string.Join("\r\n", statusText.GetSegments(85));
-
-            // Append newest status text
-            m_statusText[m_statusText.Length - 1] = statusText;
-            cumulativeStatusText.Append($"{statusText}\r\n");
+                // Append newest status text
+                statusText = string.Join(Environment.NewLine, statusText.GetSegments(95));
+                m_statusText[m_statusText.Length - 1] = statusText;
+                cumulativeStatusText.Append(statusText);
+            }
 
             // Show text on 3D status text object
-            m_statusMesh.UpdateText(cumulativeStatusText.ToString());
+            StatusMesh.UpdateText(cumulativeStatusText.ToString());
+
+            if (m_hideStatusTimer is null)
+                return;
+
+            m_hideStatusTimer.Stop();
+
+            if (displayInterval == Timeout.Infinite)
+                return;
 
             // Reset timer to hide status after a period of no updates
-            if ((object)m_hideStatusTimer != null)
-            {
-                m_hideStatusTimer.Stop();
-                m_hideStatusTimer.Start();
-            }
+            m_hideStatusTimer.Interval = displayInterval > 0 ? displayInterval : StatusDisplayInterval;
+            m_hideStatusTimer.Start();
         }
 
         // Hide status text after a period of no updates
         private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            if (!m_shuttingDown)
-                m_statusMesh?.UpdateText("");
+            if (!m_shuttingDown && !(StatusMesh is null))
+                StatusMesh.UpdateText("");
         }
 
         // Create a new data line for each subscribed measurement
         private void CreateDataLines(object[] args)
         {
-            Guid[] subscribedMeasurementIDs;
-            DataLine line;
-            Scale scale;
-
             m_subscribed = false;
 
-            if ((object)args == null || args.Length < 1)
+            if (args is null || args.Length < 1)
                 return;
 
-            subscribedMeasurementIDs = args[0] as Guid[];
-
-            if ((object)subscribedMeasurementIDs == null || (object)m_scales == null || (object)m_dataLines == null)
+            if (!(args[0] is Guid[] subscribedMeasurementIDs) || m_scales is null || m_dataLines is null)
                 return;
 
             m_scales.Clear();
@@ -869,8 +909,8 @@ namespace ConnectionTester
                     signalType = "UNKNOWN";
                 }
 
-                line = new DataLine(this, measurementID, m_dataLines.Count);
-                scale = m_scales.GetOrAdd(signalType, type => new Scale(m_graphScale, autoShrinkScale));
+                DataLine line = new DataLine(this, measurementID, m_dataLines.Count);
+                Scale scale = m_scales.GetOrAdd(signalType, _ => new Scale(GraphScale, autoShrinkScale));
                 scale.Add(line);
 
                 m_dataLines.TryAdd(measurementID, line);
@@ -886,9 +926,7 @@ namespace ConnectionTester
 
         private void UpdateLegend(object state)
         {
-            Guid[] subscribedMeasurementIDs = state as Guid[];
-
-            if ((object)subscribedMeasurementIDs == null)
+            if (!(state is Guid[] subscribedMeasurementIDs))
                 return;
 
             StringBuilder legendText = new StringBuilder();
@@ -897,21 +935,21 @@ namespace ConnectionTester
             foreach (Guid measurementID in subscribedMeasurementIDs)
             {
                 // Lookup metadata record where SignalID column is our measurement ID
-                if (m_subscriber.TryGetMeasurementMetdata(measurementID, out MeasurementMetadata metadata))
-                {
-                    m_subscriber.TryGetSignalTypeAcronym(measurementID, out string signalType);
+                if (!m_subscriber.TryGetMeasurementMetdata(measurementID, out MeasurementMetadata metadata))
+                    continue;
 
-                    if (string.IsNullOrWhiteSpace(signalType))
-                        signalType = "UNST"; // Unknown signal type
+                m_subscriber.TryGetSignalTypeAcronym(measurementID, out string signalType);
 
-                    // Add formatted metadata label expression to legend text
-                    legendText.AppendFormat(m_legendFormat, new MetadataFormatProvider(metadata, signalType));
-                    legendText.AppendLine();
-                }
+                if (string.IsNullOrWhiteSpace(signalType))
+                    signalType = "UNST"; // Unknown signal type
+
+                // Add formatted metadata label expression to legend text
+                legendText.AppendFormat(LegendFormat, new MetadataFormatProvider(metadata, signalType));
+                legendText.AppendLine();
             }
 
             // Update text for 3D text labels object with subscribed point tag names
-            m_legendMesh.UpdateText(legendText.ToString());
+            LegendMesh.UpdateText(legendText.ToString());
 
             // Create a legend line for each subscribed point
             m_legendLines.Clear();
@@ -926,7 +964,7 @@ namespace ConnectionTester
         // Create a new legend line
         private void CreateLegendLine(object[] args)
         {
-            if ((object)args == null || args.Length < 1)
+            if (args is null || args.Length < 1)
                 return;
 
             Guid id = (Guid)args[0];
@@ -939,13 +977,15 @@ namespace ConnectionTester
         // Connects or reconnects to a data publisher
         private void InitiateConnection()
         {
+            m_connecting = true;
+
             // Shutdown any existing connection
             TerminateConnection();
 
             // Attempt to extract server name from connection string
-            Dictionary<string, string> settings = m_connectionString?.ParseKeyValuePairs();
+            Dictionary<string, string> settings = ConnectionString?.ParseKeyValuePairs();
 
-            if ((object)settings == null || !settings.TryGetValue("server", out string server) || string.IsNullOrEmpty(server))
+            if (settings is null || !settings.TryGetValue("server", out string server) || string.IsNullOrEmpty(server))
             {
                 UpdateStatus("ERROR: Cannot connect - no \"server\" parameter defined in connection string. For example: \"server=localhost:7165\"");
                 return;
@@ -993,7 +1033,7 @@ namespace ConnectionTester
                 ClearSubscription();
 
             m_historicalSubscription = historical;
-            m_subscriber.FilterExpression = m_filterExpression;
+            m_subscriber.FilterExpression = FilterExpression;
 
             if (historical)
             {
@@ -1007,12 +1047,14 @@ namespace ConnectionTester
         internal void ConnectionEstablished()
         {
             m_connected = true;
+            m_connecting = false;
             m_controlWindowMinimized = true;
         }
 
         internal void ConnectionTerminated()
         {
             m_connected = false;
+            m_connecting = false;
             ClearSubscription();
         }
 
@@ -1031,12 +1073,10 @@ namespace ConnectionTester
 
         private void EraseLine(object[] args)
         {
-            if ((object)args == null || args.Length < 1)
+            if (args is null || args.Length < 1)
                 return;
 
-            ILine line = args[0] as ILine;
-
-            if ((object)line == null)
+            if (!(args[0] is ILine line))
                 return;
 
             line.Stop();
@@ -1051,8 +1091,7 @@ namespace ConnectionTester
             m_linesInitializedWaitHandle = null;
 
             // Clear out existing scales
-            if ((object)m_scales != null)
-                m_scales.Clear();
+            m_scales?.Clear();
 
             // Erase data lines
             if (m_dataLines?.Count > 0)
@@ -1073,8 +1112,8 @@ namespace ConnectionTester
             }
 
             // Clear legend text
-            if (!m_shuttingDown)
-                m_legendMesh?.UpdateText("");
+            if (!m_shuttingDown && !(LegendMesh is null))
+                LegendMesh.UpdateText("");
         }
 
         // Terminates an existing connection to a data publisher
@@ -1082,10 +1121,13 @@ namespace ConnectionTester
         {
             ClearSubscription();
 
-            if (m_connected)
+            if (m_subscriber is null)
+                return;
+
+            if (m_connected || m_connecting || m_subscriber.Connected)
                 UpdateStatus("Terminating current connection...");
 
-            m_subscriber?.Disconnect();
+            m_subscriber.Disconnect();
         }
 
         private void EndApplication()
@@ -1094,7 +1136,7 @@ namespace ConnectionTester
 
             TerminateConnection();
 
-            if ((object)m_hideStatusTimer != null)
+            if (!(m_hideStatusTimer is null))
             {
                 m_hideStatusTimer.Elapsed -= m_hideStatusTimer_Elapsed;
                 m_hideStatusTimer.Dispose();
@@ -1112,14 +1154,14 @@ namespace ConnectionTester
         protected void OnApplicationQuit()
         {
             // Load existing INI file settings
-            IniFile iniFile = new IniFile(Application.persistentDataPath + "/" + IniFileName);
+            IniFile iniFile = new IniFile($"{Application.persistentDataPath}/{IniFileName}");
 
             // Apply any user updated settings to INI file. Note that semi-colons are
             // treated as comments in INI files so we suffix connection string with a
             // semi-colon since this string can contain valid semi-colons - only the
             // last one will be treated as a comment prefix and removed at load.
-            iniFile["Settings", "ConnectionString"] = m_connectionString + ";";
-            iniFile["Settings", "FilterExpression"] = m_filterExpression;
+            iniFile["Settings", "ConnectionString"] = $"{ConnectionString};";
+            iniFile["Settings", "FilterExpression"] = FilterExpression;
             iniFile["Settings", "StartTime"] = m_startTime;
             iniFile["Settings", "StopTime"] = m_stopTime;
             iniFile["Settings", "GuiSize"] = m_guiSize.ToString();
@@ -1131,7 +1173,9 @@ namespace ConnectionTester
             }
             catch (Exception ex)
             {
-                Debug.Log("ERROR: " + ex.Message);
+            #if UNITY_EDITOR
+                Debug.Log($"ERROR: {ex.Message}");
+            #endif
             }
 
             m_subscriber?.Dispose();
