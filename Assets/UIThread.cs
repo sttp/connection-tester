@@ -35,6 +35,11 @@ namespace UnityGSF
     {
         #region [ Methods ]
 
+        protected void Start()
+        {
+            s_uiThread = Thread.CurrentThread;
+        }
+
         // Execute any queued methods on UI thread...
         protected void FixedUpdate()
         {
@@ -55,12 +60,21 @@ namespace UnityGSF
 
         // Static Fields
 
+        // Capture UI thread so items can be executed on running thread as an optimization when possible
+        private static Thread s_uiThread;
+
+        // Set up a pre-signaled handle for calls that are executed on UI thread, i.e., not queued
+        private static readonly WaitHandle s_signaledHandle;
+
         // Queue of methods and parameters
         private static readonly ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>> s_methodCalls;
 
         // Static Constructor
-        static UIThread() => 
+        static UIThread()
+        {
+            s_signaledHandle = new ManualResetEventSlim(true).WaitHandle;
             s_methodCalls = new ConcurrentQueue<Tuple<Action<object[]>, object[], ManualResetEventSlim>>();
+        }
 
         // Static Methods
 
@@ -71,6 +85,13 @@ namespace UnityGSF
         /// <returns>WaitHandle that can be used to wait for queued method to execute.</returns>
         public static WaitHandle Invoke(Action<object[]> method)
         {
+            if (s_uiThread == Thread.CurrentThread)
+            {
+                // Already running on UI thread, OK to execute immediately
+                method(null);
+                return s_signaledHandle;
+            }
+
             ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
 
             s_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, null, resetEvent));
@@ -86,6 +107,13 @@ namespace UnityGSF
         /// <returns>WaitHandle that can be used to wait for queued method to execute.</returns>
         public static WaitHandle Invoke(Action<object[]> method, params object[] args)
         {
+            if (s_uiThread == Thread.CurrentThread)
+            {
+                // Already running on UI thread, OK to execute immediately
+                method(args);
+                return s_signaledHandle;
+            }
+
             ManualResetEventSlim resetEvent = new ManualResetEventSlim(false);
 
             s_methodCalls.Enqueue(new Tuple<Action<object[]>, object[], ManualResetEventSlim>(method, args, resetEvent));
