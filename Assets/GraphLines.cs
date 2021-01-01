@@ -141,7 +141,7 @@ namespace ConnectionTester
                 {
                     if (m_timeUntilShrink > 0.0F)
                     {
-                        if ((m_scaleMax - m_scaleMin) * ShrinkStartThreshold >= (displayMax - displayMin))
+                        if ((m_scaleMax - m_scaleMin) * ShrinkStartThreshold >= displayMax - displayMin)
                             m_timeUntilShrink -= Time.deltaTime;
                         else
                             m_timeUntilShrink = ShrinkDelay;
@@ -152,7 +152,7 @@ namespace ConnectionTester
                         m_scaleMin += (displayMin - m_scaleMin) * Time.deltaTime * 5.0F;
                         m_scaleMax -= (m_scaleMax - displayMax) * Time.deltaTime * 5.0F;
 
-                        if ((m_scaleMax - m_scaleMin) * ShrinkStopThreshold <= (displayMax - displayMin))
+                        if ((m_scaleMax - m_scaleMin) * ShrinkStopThreshold <= displayMax - displayMin)
                             m_timeUntilShrink = ShrinkDelay;
                     }
                 }
@@ -350,7 +350,8 @@ namespace ConnectionTester
         private int m_lastProcessInterval;
         private bool m_historicalSubscription;
         private Vector2 m_scrollPosition;
-        private int m_guiSize = 1;
+        private bool m_lastMouseOverWindow;
+        private int m_guiSize = 2;
         private long m_lastKeyCheck;
         private bool m_shiftIsDown;
         private bool m_connected;
@@ -360,7 +361,7 @@ namespace ConnectionTester
 
         // Public fields exposed to Unity UI interface
         public string Title = "STTP Connection Tester";
-        public string ConnectionString = "server=localhost:7165;";
+        public string ConnectionString = "server=localhost:7165 ;";
         public string FilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
         public Texture LineMaterial;
         public int LineWidth = 4;
@@ -375,6 +376,7 @@ namespace ConnectionTester
         public double StatusDisplayInterval = 10000.0D;
         public string LegendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
         public GUISkin UISkin;
+        public Texture2D LinkCursor;
 
         #endregion
 
@@ -522,17 +524,25 @@ namespace ConnectionTester
 
             Physics.queriesHitTriggers = true;
 
-            const string HelpText =
-                "Press '+' to increase font size, '-' to decrease.\r\n" +
-                "Press 'C' to connect, 'D' to disconnect.\r\n" +
-                "Press 'R' to restore default graph location.\r\n" +
-                "Press 'M' to toggle status message display.\r\n" +
-                "Press 'F1' for help page.";
-
-            UpdateStatus(HelpText, 30000);
+            DisplayHelp();
 
             if (m_autoInitiateConnection)
                 InitiateConnection();
+        }
+
+        private void DisplayHelp()
+        {
+            const string HelpText =
+                "Press '+' to increase font size, or '-' to decrease.\r\n" +
+                "Press 'C' to connect, 'D' to disconnect.\r\n" +
+                "Press 'R' to restore default graph location.\r\n" +
+                "Press 'M' to toggle status message display.\r\n" +
+                "Press 'F1' for help page, or 'H' for this message.";
+
+            for (int i = 0; i < m_statusText.Length - 1; i++)
+                m_statusText[i] = "";
+
+            UpdateStatus(HelpText, 30000);
         }
 
         protected void Update()
@@ -633,6 +643,13 @@ namespace ConnectionTester
                     else
                         StatusMesh.UpdateText("");
                 }
+
+                // Show local help message with "H" key
+                if (Input.GetKey(KeyCode.H))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    DisplayHelp();
+                }
             }
 
             // Exit application with "ESC" key
@@ -643,31 +660,66 @@ namespace ConnectionTester
         private void OnGUI()
         {
             Rect controlWindowLocation = m_controlWindowMinimized ? m_controlWindowMinimizedLocation : m_controlWindowActiveLocation;
+            Event e = Event.current;
 
             GUI.skin = UISkin;
             GUIStyle windowStyle = new GUIStyle(GUI.skin.window);
             windowStyle.normal.background = m_controlWindowTexture;
             windowStyle.onNormal = windowStyle.normal;
+            windowStyle.richText = true;
 
             // Adjust font size for window title for larger GUI sizes
             if (m_guiSize > 1)
                 windowStyle.fontSize = 11 * m_guiSize;
 
+            bool mouseOverWindowTitle;
+
+            if (m_controlWindowMinimized)
+            {
+                mouseOverWindowTitle = controlWindowLocation.Contains(e.mousePosition);
+            }
+            else
+            {
+                Rect controlWindowTitleLocation = new Rect(controlWindowLocation.x, controlWindowLocation.y, controlWindowLocation.width, Screen.height - m_controlWindowMinimizedLocation.y);
+                mouseOverWindowTitle = controlWindowTitleLocation.Contains(e.mousePosition);
+            }
+
+            string controlWindowTitle = $"<b>[</b> <color=yellow>Subscription Controls</color> <b>]</b>{(mouseOverWindowTitle ? $" - <i>Click to {(m_controlWindowMinimized ? "Expand" : "Minimize")}</i>" : "")}";
+
             // Create subscription control window
-            GUILayout.Window(0, controlWindowLocation, DrawControlsWindow, "Subscription Controls", windowStyle, GUILayout.MaxWidth(Screen.width));
+            GUILayout.Window(0, controlWindowLocation, DrawControlsWindow, controlWindowTitle, windowStyle, GUILayout.MaxWidth(Screen.width));
 
             // Handle click events to show/hide control window
-            Event e = Event.current;
+            if (!(LinkCursor is null))
+            {
+                if (mouseOverWindowTitle)
+                    Cursor.SetCursor(LinkCursor, Vector2.zero, CursorMode.Auto);
+                else if (m_lastMouseOverWindow)
+                    Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            }
+
+            m_lastMouseOverWindow = mouseOverWindowTitle;
 
             if (e.isMouse && Input.GetMouseButtonUp(0))
             {
-                bool mouseOverWindow = controlWindowLocation.Contains(e.mousePosition);
-
-                // If mouse is over minimized control window during click, "pop-up" control window
-                if (mouseOverWindow && m_controlWindowMinimized)
-                    m_controlWindowMinimized = false;
-                else if (!m_controlWindowMinimized)
+                if (mouseOverWindowTitle)
+                {
+                    // If mouse is over control window title during click, show or hide control window
+                    if (m_controlWindowMinimized)
+                    {
+                        m_controlWindowMinimized = false;
+                        Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+                    }
+                    else
+                    {
+                        m_controlWindowMinimized = true;
+                    }
+                }
+                else if (!controlWindowLocation.Contains(e.mousePosition))
+                {
+                    // If user clicks on main window, minimize control window
                     m_controlWindowMinimized = true;
+                }
             }
 
             m_shiftIsDown = e.shift;
@@ -675,6 +727,11 @@ namespace ConnectionTester
             // Mouse based camera orbit is disabled while control window is active
             if (!(m_mouseOrbitScript is null))
                 m_mouseOrbitScript.IsActive = m_controlWindowMinimized;
+
+            // Make sure no text boxes have focus when control window is minimized
+            // so any hot keys do not get added to active text fields
+            if (m_controlWindowMinimized)
+                GUI.FocusControl(null);
 
             // Add a close application button on the main screen, this is handy
             // on mobile deployments where hitting ESC button is not so easy
@@ -688,27 +745,60 @@ namespace ConnectionTester
             GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
             versionLabelStyle.fontSize = 11 * m_guiSize;
             versionLabelStyle.alignment = TextAnchor.UpperLeft;
-            GUILayout.Label($"v{m_version}", versionLabelStyle);
+            versionLabelStyle.richText = true;
+            GUILayout.Label($"<color=yellow>v{m_version}</color>", versionLabelStyle);
         }
 
         private void DrawControlsWindow(int windowID)
         {
-            GUIStyle horizontalScrollbarThumbStyle = new GUIStyle(GUI.skin.horizontalScrollbarThumb);
-            GUIStyle verticalScrollbarThumbStyle = new GUIStyle(GUI.skin.verticalScrollbarThumb);
+            float widthScalar = 1.0F;
+
+            GUIStyle horizontalScrollbarStyle = null;
+            GUIStyle verticalScrollbarStyle = null;
             GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
             GUIStyle textFieldStyle = new GUIStyle(GUI.skin.textField);
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
             GUIStyle sliderStyle = new GUIStyle(GUI.skin.horizontalSlider);
             GUIStyle sliderThumbStyle = new GUIStyle(GUI.skin.horizontalSliderThumb);
 
-            float widthScalar = 1.0F;
-
             // Handle larger sizes for GUI elements
             if (m_guiSize > 1)
             {
+                Dictionary<string, GUIStyle> customStyles = GUI.skin.customStyles.ToDictionary(style => style.name, StringComparer.OrdinalIgnoreCase);
+
+                horizontalScrollbarStyle = new GUIStyle(GUI.skin.horizontalScrollbar) { name = "sizedhorizontal" };
+                GUIStyle horizontalScrollbarThumbStyle = new GUIStyle(GUI.skin.horizontalScrollbarThumb) { name = "sizedhorizontalthumb" };
+                GUIStyle horizontalScrollbarLeftButtonStyle = new GUIStyle(GUI.skin.horizontalScrollbarLeftButton) { name = "sizedhorizontalleftbutton" };
+                GUIStyle horizontalScrollbarRightButtonStyle = new GUIStyle(GUI.skin.horizontalScrollbarRightButton) { name = "sizedhorizontalrightbutton" };
+
+                customStyles[horizontalScrollbarStyle.name] = horizontalScrollbarStyle;
+                customStyles[horizontalScrollbarThumbStyle.name] = horizontalScrollbarThumbStyle;
+                customStyles[horizontalScrollbarLeftButtonStyle.name] = horizontalScrollbarLeftButtonStyle;
+                customStyles[horizontalScrollbarRightButtonStyle.name] = horizontalScrollbarRightButtonStyle;
+
+                verticalScrollbarStyle = new GUIStyle(GUI.skin.verticalScrollbar) { name = "sizedvertical" };
+                GUIStyle verticalScrollbarThumbStyle = new GUIStyle(GUI.skin.verticalScrollbarThumb) { name = "sizedverticalthumb" };
+                GUIStyle verticalScrollbarUpButtonStyle = new GUIStyle(GUI.skin.verticalScrollbarUpButton) { name = "sizedverticalupbutton" };
+                GUIStyle verticalScrollbarDownButtonStyle = new GUIStyle(GUI.skin.verticalScrollbarDownButton) { name = "sizedverticaldownbutton" };
+
+                customStyles[verticalScrollbarStyle.name] = verticalScrollbarStyle;
+                customStyles[verticalScrollbarThumbStyle.name] = verticalScrollbarThumbStyle;
+                customStyles[verticalScrollbarUpButtonStyle.name] = verticalScrollbarUpButtonStyle;
+                customStyles[verticalScrollbarDownButtonStyle.name] = verticalScrollbarDownButtonStyle;
+
+                GUI.skin.customStyles = customStyles.Values.ToArray();
+
+                horizontalScrollbarStyle.fixedHeight *= m_guiSize * 0.75F;
+                horizontalScrollbarThumbStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
+                horizontalScrollbarLeftButtonStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
+                horizontalScrollbarRightButtonStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
+
+                verticalScrollbarStyle.fixedWidth *= m_guiSize * 0.75F;
+                verticalScrollbarThumbStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
+                verticalScrollbarUpButtonStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
+                verticalScrollbarDownButtonStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
+
                 // This work was non-deterministic - should be a better way...
-                horizontalScrollbarThumbStyle.fixedHeight *= (m_guiSize * 0.75F);
-                verticalScrollbarThumbStyle.fixedWidth *= (m_guiSize * 0.75F);
                 labelStyle.fontSize = 11 * m_guiSize;
                 textFieldStyle.fontSize = 11 * m_guiSize;
                 buttonStyle.fontSize = 11 * m_guiSize;
@@ -725,19 +815,25 @@ namespace ConnectionTester
 
             // Text field contents will auto-stretch control window beyond screen extent,
             // so we add automatic scroll bars to the region in case things expand
-            m_scrollPosition = GUILayout.BeginScrollView(m_scrollPosition, horizontalScrollbarThumbStyle, verticalScrollbarThumbStyle);
+            m_scrollPosition = m_guiSize > 1 ? 
+                GUILayout.BeginScrollView(m_scrollPosition, horizontalScrollbarStyle, verticalScrollbarStyle) :
+                GUILayout.BeginScrollView(m_scrollPosition);
+            
             GUILayout.BeginVertical();
 
-            // Until a better way is found, just adding some vertical padding
-            // with a blank row for larger GUI sizes (optional Row 0)
+            // Add some vertical padding with a blank row for larger GUI sizes (optional Row 0)
+            GUIStyle blankLabelStyle = new GUIStyle(GUI.skin.label);
+
             if (m_guiSize > 1)
             {
-                GUIStyle blankLabelStyle = new GUIStyle(GUI.skin.label);
-                blankLabelStyle.fontSize = 4;
+                blankLabelStyle.fontSize = 6;
 
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("", blankLabelStyle);
-                GUILayout.EndHorizontal();
+                for (int i = 1; i < m_guiSize; i++)
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("", blankLabelStyle);
+                    GUILayout.EndHorizontal();
+                }
             }
 
             // Row 1 - server connection string
@@ -794,11 +890,21 @@ namespace ConnectionTester
 
             GUILayout.EndHorizontal();
 
+            // Add some vertical padding for larger font sizes with a blank row as separator for INI file path that follows
+            if (m_guiSize > 1)
+            {
+                blankLabelStyle.fontSize = 1 + (m_guiSize - 1) * 2;
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("", blankLabelStyle);
+                GUILayout.EndHorizontal();
+            }
+
             // Row 4 - INI file path
             GUILayout.BeginHorizontal();
 
             GUIStyle iniLabelStyle = new GUIStyle(GUI.skin.label);
-            iniLabelStyle.fontSize = 10 + (m_guiSize > 1 ? m_guiSize * 4 : 0);
+            iniLabelStyle.fontSize = 10 + (m_guiSize > 1 ? m_guiSize * (m_guiSize > 2 ? 3 : 1): 0);
             iniLabelStyle.fontStyle = FontStyle.Italic;
             iniLabelStyle.alignment = TextAnchor.UpperCenter;
 
@@ -1017,7 +1123,7 @@ namespace ConnectionTester
             if (settings.TryGetValue("dataChannel", out string dataChannel) && !string.IsNullOrWhiteSpace(dataChannel))
                 ushort.TryParse(dataChannel, out udpPort);
 
-            UpdateStatus($"Attempting connection to \"{hostname}:{port}\"...");
+            UpdateStatus($"Attempting connection to \"{hostname}:{port}\"{(udpPort > 0 ? $" with UDP data channel on port \"{udpPort}\"" : "")}...");
 
             InitiateSubscription();
 
@@ -1035,13 +1141,14 @@ namespace ConnectionTester
             m_historicalSubscription = historical;
             m_subscriber.FilterExpression = FilterExpression;
 
-            if (historical)
-            {
-                m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
-                m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-                m_lastProcessInterval = m_processInterval;
-                UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
-            }
+            if (!historical)
+                return;
+
+            m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
+            m_subscriber.SetHistoricalReplayInterval(m_processInterval);
+            m_lastProcessInterval = m_processInterval;
+            
+            UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
         }
 
         internal void ConnectionEstablished()
@@ -1064,8 +1171,8 @@ namespace ConnectionTester
             m_lastScreenWidth = Screen.width;
 
             // Make control window size adjustments for larger GUI sizes
-            float heightScalar = m_guiSize > 1 ? m_guiSize * 0.80F : 1.0F;
-            int heighOffset = m_guiSize > 1 ? 12 : 0;
+            float heightScalar = m_guiSize > 1 ? m_guiSize * (m_guiSize > 2 ? 0.75F : 0.83F) : 1.0F;
+            int heighOffset = (m_guiSize - 1) * 12;
 
             m_controlWindowActiveLocation = new Rect(0, Screen.height - ControlWindowActiveHeight * heightScalar, Screen.width, ControlWindowActiveHeight * heightScalar);
             m_controlWindowMinimizedLocation = new Rect(0, Screen.height - (ControlWindowMinimizedHeight + heighOffset), Screen.width, ControlWindowActiveHeight * heightScalar);
@@ -1160,11 +1267,16 @@ namespace ConnectionTester
             // treated as comments in INI files so we suffix connection string with a
             // semi-colon since this string can contain valid semi-colons - only the
             // last one will be treated as a comment prefix and removed at load.
-            iniFile["Settings", "ConnectionString"] = $"{ConnectionString};";
+            iniFile["Settings", "ConnectionString"] = $"{ConnectionString} ;"; // See note below *
             iniFile["Settings", "FilterExpression"] = FilterExpression;
             iniFile["Settings", "StartTime"] = m_startTime;
             iniFile["Settings", "StopTime"] = m_stopTime;
             iniFile["Settings", "GuiSize"] = m_guiSize.ToString();
+
+            // * Trailing semi-colon is intentational. Since optional connection string parameters
+            // will be separated by semi-colon and INI files treat trailing semi-colons as comment 
+            // markers, the connection string will always need a semi-colon at the end of the line
+            // when serialized to prevent removal of optional connection string parameters on load.
 
             // Attempt to save INI file updates
             try

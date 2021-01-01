@@ -105,6 +105,9 @@ namespace UnityGSF
 
                     if (distanceRestoreComplete)
                     {
+                        XAngle %= 360.0F;
+                        YAngle %= 360.0F;
+
                         bool xRestoreComplete = TickVariableRestoration(ref XAngle, m_originalX, 300.0F);
                         bool yRestoreComplete = TickVariableRestoration(ref YAngle, m_originalY, 300.0F);
 
@@ -121,7 +124,7 @@ namespace UnityGSF
                 Touch touch1 = Input.GetTouch(1);
 
                 Vector2 curDist = touch0.position - touch1.position;
-                Vector2 prevDist = (touch0.position - touch0.deltaPosition) - (touch1.position - touch1.deltaPosition);
+                Vector2 prevDist = touch0.position - touch0.deltaPosition - (touch1.position - touch1.deltaPosition);
 
                 float delta = (curDist.magnitude - prevDist.magnitude) / (ZoomRate / 5.0F);
                 Distance -= delta;
@@ -141,7 +144,7 @@ namespace UnityGSF
                 if (m_buttonDown)
                 {
                     m_downCount++;
-                    m_rotate = (m_downCount >= MouseDownFrames);
+                    m_rotate = m_downCount >= MouseDownFrames;
                 }
                 else
                 {
@@ -174,7 +177,7 @@ namespace UnityGSF
             else if (Distance > MaxDistance)
                 Distance = MaxDistance;
 
-            Quaternion rotation = Quaternion.Euler(XAngle, YAngle, 0);
+            Quaternion rotation = Quaternion.Euler(YAngle, XAngle, 0); // X/Y values swapped for better mouse rotation orientation
             Vector3 distance3 = new Vector3(0.0F, 0.0F, -Distance);
             Vector3 position = rotation * distance3 + Target.position;
 
