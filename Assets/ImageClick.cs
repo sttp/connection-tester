@@ -24,35 +24,39 @@
 using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityGSF;
 
-public class ImageClick : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+// ReSharper disable InconsistentNaming
+// ReSharper disable once CheckNamespace
+namespace UnityGSF
 {
-    public string URL;
-    public Texture2D LinkCursor;
-    public TextMesh ToolTip;
-
-    public void OnPointerClick(PointerEventData eventData)
+    public class ImageClick : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
-        if (!string.IsNullOrWhiteSpace(URL))
-            Process.Start(URL);
-    }
+        public string URL;
+        public Texture2D LinkCursor;
+        public TextMesh ToolTip;
 
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (!(LinkCursor is null))
-            Cursor.SetCursor(LinkCursor, Vector2.zero, CursorMode.Auto);
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (!string.IsNullOrWhiteSpace(URL))
+                Process.Start(URL);
+        }
 
-        if (!(ToolTip is null) && !string.IsNullOrWhiteSpace(URL))
-            ToolTip.UpdateText(URL);
-    }
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (!(LinkCursor is null))
+                Cursor.SetCursor(LinkCursor, Vector2.zero, CursorMode.Auto);
 
-    public void OnPointerExit(PointerEventData eventData)
-    {
-        if (!(LinkCursor is null))
-            Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+            if (!(ToolTip is null) && !string.IsNullOrWhiteSpace(URL))
+                ToolTip.UpdateText(URL);
+        }
 
-        if (!(ToolTip is null) && !string.IsNullOrWhiteSpace(URL))
-            ToolTip.UpdateText("");
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            if (!(LinkCursor is null))
+                Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
+
+            if (!(ToolTip is null) && !string.IsNullOrWhiteSpace(URL))
+                ToolTip.UpdateText("");
+        }
     }
 }
