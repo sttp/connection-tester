@@ -26,11 +26,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 
-// ReSharper disable ArrangeObjectCreationWhenTypeEvident
-// ReSharper disable ConvertToUsingDeclaration
-// ReSharper disable once CheckNamespace
-#pragma warning disable IDE0063
-
+// ReSharper disable CheckNamespace
 namespace UnityGSF
 {
     public class IniFile

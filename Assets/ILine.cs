@@ -1,7 +1,7 @@
 ﻿//******************************************************************************************************
-//  Common.cs - Gbtc
+//  ILine.cs - Gbtc
 //
-//  Copyright © 2019, Grid Protection Alliance.  All Rights Reserved.
+//  Copyright © 2021, Grid Protection Alliance.  All Rights Reserved.
 //
 //  Licensed to the Grid Protection Alliance (GPA) under one or more contributor license agreements. See
 //  the NOTICE file distributed with this work for additional information regarding copyright ownership.
@@ -16,23 +16,21 @@
 //
 //  Code Modification History:
 //  ----------------------------------------------------------------------------------------------------
-//  12/24/2020 - J. Ritchie Carroll
+//  01/01/2021 - J. Ritchie Carroll
 //       Generated original version of source code.
 //
 //******************************************************************************************************
 
-using System.Linq;
-using System.Reflection;
+using System;
 
 // ReSharper disable CheckNamespace
 namespace ConnectionTester
 {
-    public static class Common
+    // Defines a common set of methods for a line
+    public interface ILine
     {
-        public static string GetMetadataValue(this Assembly assembly, string keyName) => 
-            assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(metadata => metadata.Key.Equals(keyName))?.Value;
+        Guid ID { get; }
 
-        public static string GetTargetName() => 
-            typeof(GraphLines).Assembly.GetMetadataValue("TargetName");
+        void Stop();
     }
 }

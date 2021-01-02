@@ -24,8 +24,7 @@
 using System;
 using UnityEngine;
 
-// ReSharper disable ArrangeObjectCreationWhenTypeEvident
-// ReSharper disable once CheckNamespace
+// ReSharper disable CheckNamespace
 namespace UnityGSF
 {
     public class MouseOrbit : MonoBehaviour

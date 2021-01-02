@@ -26,7 +26,6 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-// ReSharper disable ArrangeObjectCreationWhenTypeEvident
 // ReSharper disable once CheckNamespace
 namespace UnityGSF
 {
@@ -36,8 +35,8 @@ namespace UnityGSF
         /// <summary>
         /// Updates the text of a 3D Text object, even from a non-UI thread.
         /// </summary>
-        /// <param name='mesh'>The text mesh to update.</param>
-        /// <param name='text'>The new text to apply to the mesh.</param>
+        /// <param name="mesh">The text mesh to update.</param>
+        /// <param name="text">The new text to apply to the mesh.</param>
         public static void UpdateText(this TextMesh mesh, string text) => 
             UIThread.Invoke(UpdateText, mesh, text);
 

@@ -28,26 +28,21 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Timers;
 using UnityEngine;
 using UnityGSF;
 using Vectrosity;
-using Debug = UnityEngine.Debug;
+using Timer = System.Timers.Timer;
 
-// ReSharper disable UnusedMember.Local
-// ReSharper disable IntroduceOptionalParameters.Local
-// ReSharper disable UnusedMemberInSuper.Global
-// ReSharper disable RedundantCast.0
-// ReSharper disable ArrangeObjectCreationWhenTypeEvident
-// ReSharper disable once CheckNamespace
+// ReSharper disable CheckNamespace
 namespace ConnectionTester
 {
-    public class GraphLines : MonoBehaviour
+    public partial class GraphLines : MonoBehaviour
     {
         #region [ Static ]
 
@@ -56,7 +51,7 @@ namespace ConnectionTester
         static GraphLines()
         {
         #if !UNITY_EDITOR
-            // Setup path at run-time to load proper version of native sttp.net.lib.dll
+            // Setup path at run-time to load proper version of native sttp.net.lib (.dll or .so)
             string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
             string pluginPath = Path.Combine(Path.GetFullPath("."), $"{Common.GetTargetName()}_Data", "Plugins");
 
@@ -74,253 +69,25 @@ namespace ConnectionTester
 
         #endregion
 
-        #region [ Nested Types ]
-
-        // Defines a common set of methods for a line
-        private interface ILine
-        {
-            Guid ID { get; }
-
-            void Stop();
-        }
-
-        private class Scale
-        {
-            private const float ShrinkStartThreshold = 0.5F;
-            private const float ShrinkStopThreshold = 0.9F;
-            private const float ShrinkDelay = 1.0F;
-
-            private readonly List<DataLine> m_lines;
-
-            private float m_scaleMin = float.NaN;
-            private float m_scaleMax = float.NaN;
-            private readonly float m_graphScale;
-            private readonly bool m_autoShrinkScale;
-            private float m_timeUntilShrink;
-
-            public Scale(float graphScale, bool autoShrinkScale)
-            {
-                m_graphScale = graphScale;
-                m_autoShrinkScale = autoShrinkScale;
-                m_lines = new List<DataLine>();
-                m_timeUntilShrink = ShrinkDelay;
-            }
-
-            public void Add(DataLine line) => m_lines.Add(line);
-
-            public void Update()
-            {
-                float displayMin = float.NaN;
-                float displayMax = float.NaN;
-
-                foreach (DataLine line in m_lines)
-                {
-                    foreach (float value in line.UnscaledData)
-                    {
-                        if (float.IsNaN(displayMin) || value < displayMin)
-                            displayMin = value;
-
-                        if (float.IsNaN(displayMax) || value > displayMax)
-                            displayMax = value;
-                    }
-                }
-
-                if (float.IsNaN(m_scaleMin) || displayMin < m_scaleMin)
-                {
-                    m_scaleMin = displayMin;
-                    m_timeUntilShrink = ShrinkDelay;
-                }
-
-                if (float.IsNaN(m_scaleMax) || displayMax > m_scaleMax)
-                {
-                    m_scaleMax = displayMax;
-                    m_timeUntilShrink = ShrinkDelay;
-                }
-
-                if (m_autoShrinkScale)
-                {
-                    if (m_timeUntilShrink > 0.0F)
-                    {
-                        if ((m_scaleMax - m_scaleMin) * ShrinkStartThreshold >= displayMax - displayMin)
-                            m_timeUntilShrink -= Time.deltaTime;
-                        else
-                            m_timeUntilShrink = ShrinkDelay;
-                    }
-
-                    if (m_timeUntilShrink <= 0.0F)
-                    {
-                        m_scaleMin += (displayMin - m_scaleMin) * Time.deltaTime * 5.0F;
-                        m_scaleMax -= (m_scaleMax - displayMax) * Time.deltaTime * 5.0F;
-
-                        if ((m_scaleMax - m_scaleMin) * ShrinkStopThreshold <= displayMax - displayMin)
-                            m_timeUntilShrink = ShrinkDelay;
-                    }
-                }
-
-                ScaleLinePoints();
-            }
-
-            private void ScaleLinePoints()
-            {
-                foreach (DataLine line in m_lines)
-                {
-                    for (int x = 0; x < line.UnscaledData.Length; x++)
-                    {
-                        float unscaledValue = line.UnscaledData[x];
-
-                        if (float.IsNaN(unscaledValue))
-                            unscaledValue = MidPoint;
-
-                        Vector3 point = line.LinePoints[x];
-                        point.z = -ScaleValue(unscaledValue);
-                        line.LinePoints[x] = point;
-                    }
-                }
-            }
-
-            private float ScaleValue(float value) => (value - m_scaleMin) * (m_graphScale * 2.0F) / Range - m_graphScale;
-
-            private float Range => m_scaleMax - m_scaleMin;
-
-            private float MidPoint => m_scaleMin + Range / 2.0F;
-        }
-
-        // Creates a dynamically scaled 3D line using Vectrosity asset to draw line for data
-        private class DataLine : ILine
-        {
-            private VectorLine m_vector;
-
-            public DataLine(GraphLines parent, Guid id, int index)
-            {
-                ID = id;
-                Index = index;
-                UnscaledData = new float[parent.PointsInLine];
-
-                m_vector = new VectorLine($"DataLine{index}", new List<Vector3>(parent.PointsInLine), parent.LineMaterial, parent.LineWidth, LineType.Continuous)
-                {
-                    color = parent.LineColors[index % parent.LineColors.Length],
-                    drawTransform = parent.Target
-                };
-
-                m_vector.Draw3DAuto();
-
-                for (int x = 0; x < m_vector.points3.Count; x++)
-                {
-                    UnscaledData[x] = float.NaN;
-                    m_vector.points3[x] = new Vector3(Mathf.Lerp(-5.0F, 5.0F, x / (float)m_vector.points3.Count), -((index + 1) * parent.LineDepthOffset + 0.05F), 0.0F);
-                }
-            }
-
-            public Guid ID { get; }
-
-            // ReSharper disable once UnusedAutoPropertyAccessor.Local
-            // ReSharper disable once MemberCanBePrivate.Local
-            public int Index { get; }
-
-            public Color VectorColor
-            {
-                get => m_vector.color;
-                set => m_vector.color = value;
-            }
-
-            public float[] UnscaledData { get; }
-
-            public List<Vector3> LinePoints => m_vector.points3;
-
-            public void Stop()
-            {
-                if (m_vector is null)
-                    return;
-
-                m_vector.StopDrawing3DAuto();
-                VectorLine.Destroy(ref m_vector);
-            }
-
-            public void UpdateValue(float newValue)
-            {
-                int x;
-
-                // Move y position of all points to the left by one
-                for (x = 0; x < m_vector.points3.Count - 1; x++)
-                    UnscaledData[x] = UnscaledData[x + 1];
-
-                UnscaledData[x] = newValue;
-            }
-        }
-
-        // Creates a fixed 3D line using Vectrosity asset to draw line for legend
-        private class LegendLine : ILine
-        {
-            private VectorLine m_vector;
-
-            public LegendLine(GraphLines parent, Guid id, int index, Color color)
-            {
-                Transform transform = parent.LegendMesh.transform;
-                Vector3 position = transform.position;
-
-                ID = id;
-                
-                m_vector = new VectorLine($"LegendLine{index}", new List<Vector3>(2), parent.LineMaterial, parent.LineWidth, LineType.Discrete)
-                {
-                    color = color, 
-                    drawTransform = transform
-                };
-                
-                m_vector.Draw3DAuto();
-
-                float spacing = parent.LegendMesh.characterSize * 1.96F;
-
-                // Position legend line relative to text descriptions
-                Vector3 point1 = new Vector3(-2.0F, -(spacing / 2.0F + index * spacing), -position.z);
-                Vector3 point2 = new Vector3(-0.5F, point1.y, point1.z);
-
-                m_vector.points3[0] = point1;
-                m_vector.points3[1] = point2;
-            }
-
-            public Guid ID { get; }
-
-            public void Stop()
-            {
-                if (m_vector is null)
-                    return;
-
-                m_vector.StopDrawing3DAuto();
-                VectorLine.Destroy(ref m_vector);
-            }
-        }
-
-        // Exposes Metadata record in a string.Format expression
-        private class MetadataFormatProvider : IFormattable
-        {
-            private readonly MeasurementMetadata m_metadata;
-            private readonly string m_signalTypeAcronym;
-
-            public MetadataFormatProvider(MeasurementMetadata metadata, string signalTypeAcronym)
-            {
-                m_metadata = metadata;
-                m_signalTypeAcronym = signalTypeAcronym;
-            }
-
-            public string ToString(string propertyName, IFormatProvider provider)
-            {
-                if (propertyName.Equals("SignalTypeAcronym", StringComparison.OrdinalIgnoreCase))
-                    return m_signalTypeAcronym;
-
-                return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? $"<{propertyName}>";
-            }
-        }
-
-        #endregion
-
         #region [ Members ]
 
         // Constants
-        private const string IniFileName = "settings.ini";
-        private const int ControlWindowActiveHeight = 130;
-        private const int ControlWindowMinimizedHeight = 20;
-        private const int MinGuiSize = 1;
-        private const int MaxGuiSize = 3;
+        public const string DefaultConnectionString = "server=localhost:7165;";
+        public const string DefaultFilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
+        public const string DefaultStartTime = "*-5M";
+        public const string DefaultStopTime = "*";
+        public const int DefaultMaxSignals = 30;
+        public const int DefaultProcesssInterval = 33;
+        public const bool DefaultAutoInitiateConnection = false;
+        public const int DefaultStatusRows = 10;
+        public const string DefaultTitle = "STTP Connection Tester";
+        public const int DefaultLineWidth = 4;
+        public const float DefaultLineDepthOffset = 0.75F;
+        public const int DefaultPointsInLine = 50;
+        public const float DefaultGraphScale = 5.0F;
+        public const double DefaultStatusDisplayInterval = 10000.0D;
+        public const string DefaultLegendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
+        public static readonly Color[] DefaultLineColors = { Color.blue, Color.yellow, Color.red, Color.white, Color.cyan, Color.magenta, Color.black, Color.gray };
 
         // Fields
         private readonly DataSubscriber m_subscriber;
@@ -331,27 +98,23 @@ namespace ConnectionTester
         private ConcurrentQueue<IList<Measurement>> m_dataQueue;
         private List<LegendLine> m_legendLines;
         private string[] m_statusText;
-        private System.Timers.Timer m_hideStatusTimer;
+        private Timer m_hideStatusTimer;
         private MouseOrbit m_mouseOrbitScript;
         private WaitHandle m_linesInitializedWaitHandle;
 
-        // Subscriber control window variables
-        private Texture2D m_controlWindowTexture;
-        private Rect m_controlWindowActiveLocation;
-        private Rect m_controlWindowMinimizedLocation;
-        private bool m_controlWindowMinimized;
-        private int m_lastScreenHeight = -1;
-        private int m_lastScreenWidth = -1;
-        private string m_startTime = "*-5M";
-        private string m_stopTime = "*";
-        private int m_maxSignals = 30;
-        private bool m_autoInitiateConnection;
-        private int m_processInterval = 33;
+        // Subscription control window variables (managed via GraphLinesGUI.cs)
+        private string m_connectionString = DefaultConnectionString;
+        private string m_filterExpression = DefaultFilterExpression;
+        private string m_startTime = DefaultStartTime;
+        private string m_stopTime = DefaultStopTime;
+        private int m_maxSignals = DefaultMaxSignals;
+        private bool m_autoInitiateConnection = DefaultAutoInitiateConnection;
+        private int m_processInterval = DefaultProcesssInterval;
+        private int m_statusRows = DefaultStatusRows;
+
+        // Run-time operation variables
         private int m_lastProcessInterval;
         private bool m_historicalSubscription;
-        private Vector2 m_scrollPosition;
-        private bool m_lastMouseOverWindow;
-        private int m_guiSize = 2;
         private long m_lastKeyCheck;
         private bool m_shiftIsDown;
         private bool m_connected;
@@ -360,23 +123,25 @@ namespace ConnectionTester
         private bool m_shuttingDown;
 
         // Public fields exposed to Unity UI interface
-        public string Title = "STTP Connection Tester";
-        public string ConnectionString = "server=localhost:7165 ;";
-        public string FilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
-        public Texture LineMaterial;
-        public int LineWidth = 4;
-        public float LineDepthOffset = 0.75F;
-        public int PointsInLine = 50;
+
+        // The following fields are assigned in Unity editor and are used to associate scene objects with GraphLines script,
+        // note that the GraphLines script instance is currently associated with the "Main Camera" scene object
         public Transform Target;
-        public float GraphScale = 5.0F;
-        public Color[] LineColors = { Color.blue, Color.yellow, Color.red, Color.white, Color.cyan, Color.magenta, Color.black, Color.gray };
         public TextMesh LegendMesh;
         public TextMesh StatusMesh;
-        public int StatusRows = 4;
-        public double StatusDisplayInterval = 10000.0D;
-        public string LegendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
+        public Texture LineMaterial;
         public GUISkin UISkin;
         public Texture2D LinkCursor;
+        
+        // The following fields are used to tweak run-time behavior while debugging from within Unity editor
+        public string Title = DefaultTitle;
+        public int LineWidth = DefaultLineWidth;
+        public float LineDepthOffset = DefaultLineDepthOffset;
+        public int PointsInLine = DefaultPointsInLine;
+        public float GraphScale = DefaultGraphScale;
+        public double StatusDisplayInterval = DefaultStatusDisplayInterval;
+        public string LegendFormat = DefaultLegendFormat;
+        public Color[] LineColors = DefaultLineColors;
 
         #endregion
 
@@ -397,6 +162,11 @@ namespace ConnectionTester
 
             m_version = $"{assemblyInfo.Version.Major}.{assemblyInfo.Version.Minor}.{assemblyInfo.Version.Build}";
             m_buildDate = $"{buildDate:yyyy-MM-dd HH:mm:ss}";
+
+            // Update subscriber info to include information that source is STTP connection tester
+            m_subscriber.GetAssemblyInfo(out string source, out string version, out string updatedOn);
+            source = $"STTP Connection Tester version {m_version} updated on {m_buildDate}, using STTP library {source}";
+            m_subscriber.SetAssemblyInfo(source, version, updatedOn);
         }
 
         #endregion
@@ -407,51 +177,8 @@ namespace ConnectionTester
 
         protected void Awake()
         {
-            string defaultIniPath = $"{Application.dataPath}/{IniFileName}";
-            string userIniPath = $"{Application.persistentDataPath}/{IniFileName}";
-
-            // Copy INI file with default settings to user INI file if one doesn't exist
-            if (File.Exists(defaultIniPath) && !File.Exists(userIniPath))
-                File.Copy(defaultIniPath, userIniPath);
-
-            // Load settings from INI file
-            IniFile iniFile = new IniFile(userIniPath);
-
-            Title = iniFile["Settings", "Title", Title];
-            ConnectionString = iniFile["Settings", "ConnectionString", ConnectionString];
-            FilterExpression = iniFile["Settings", "FilterExpression", FilterExpression];
-            LineWidth = int.Parse(iniFile["Settings", "LineWidth", LineWidth.ToString()]);
-            LineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", LineDepthOffset.ToString(CultureInfo.InvariantCulture)]);
-            PointsInLine = int.Parse(iniFile["Settings", "PointsInLine", PointsInLine.ToString()]);
-            LegendFormat = iniFile["Settings", "LegendFormat", LegendFormat];
-            StatusRows = int.Parse(iniFile["Settings", "StatusRows", StatusRows.ToString()]);
-            StatusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", StatusDisplayInterval.ToString(CultureInfo.InvariantCulture)]);
-
-            m_startTime = iniFile["Settings", "StartTime", m_startTime];
-            m_stopTime = iniFile["Settings", "StopTime", m_stopTime];
-            m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", m_maxSignals.ToString()]);
-            m_autoInitiateConnection = bool.Parse(iniFile["Settings", "AutoInitiateConnection", m_autoInitiateConnection.ToString()]);
-            m_guiSize = int.Parse(iniFile["Settings", "GuiSize", m_guiSize.ToString()]);
-            m_controlWindowMinimized = m_autoInitiateConnection;
-
-            // Validate deserialized GUI size
-            if (m_guiSize < MinGuiSize)
-                m_guiSize = MinGuiSize;
-
-            if (m_guiSize > MaxGuiSize)
-                m_guiSize = MaxGuiSize;
-
-            // Attempt to save INI file updates (e.g., to restore any missing settings)
-            try
-            {
-                iniFile.Save();
-            }
-            catch (Exception ex)
-            {
-            #if UNITY_EDITOR
-                Debug.Log($"ERROR: {ex.Message}");
-            #endif
-            }
+            // Load previous settings from INI file
+            LoadSettings();
 
             // Attempt to reference active mouse orbit script
             m_mouseOrbitScript = GetComponent<MouseOrbit>();
@@ -463,29 +190,18 @@ namespace ConnectionTester
             m_legendLines = new List<LegendLine>();
 
             // Initialize status rows and timer to hide status after a period of no updates
-            m_statusText = new string[StatusRows];
+            m_statusText = new string[m_statusRows];
 
-            for (int i = 0; i < StatusRows; i++)
+            for (int i = 0; i < m_statusRows; i++)
                 m_statusText[i] = "";
 
-            m_hideStatusTimer = new System.Timers.Timer
+            m_hideStatusTimer = new Timer
             {
                 AutoReset = false,
                 Interval = StatusDisplayInterval
             };
             
-            m_hideStatusTimer.Elapsed += m_hideStatusTimer_Elapsed;
-
-            // For mobile applications we use a larger GUI font size.
-            // Other deployments might benefit from this as well - larger
-            // size modes may work also but are not tested
-            if (Application.platform == RuntimePlatform.Android || Application.platform == RuntimePlatform.IPhonePlayer)
-                m_guiSize = Screen.height <= 720 ? 2 : 3;
-
-            // Create a solid background for the control window
-            m_controlWindowTexture = new Texture2D(1, 1);
-            m_controlWindowTexture.SetPixel(0, 0, new Color32(10, 25, 70, 255));
-            m_controlWindowTexture.Apply();
+            m_hideStatusTimer.Elapsed += HideStatusTimer_Elapsed;
 
             VectorLine.SetCanvasCamera(Camera.main);
             VectorLine.canvas.hideFlags = HideFlags.HideInHierarchy;
@@ -533,11 +249,13 @@ namespace ConnectionTester
         private void DisplayHelp()
         {
             const string HelpText =
+                "<b><color=lightblue>" +
                 "Press '+' to increase font size, or '-' to decrease.\r\n" +
                 "Press 'C' to connect, 'D' to disconnect.\r\n" +
                 "Press 'R' to restore default graph location.\r\n" +
                 "Press 'M' to toggle status message display.\r\n" +
-                "Press 'F1' for help page, or 'H' for this message.";
+                "Press 'F1' for help page, or 'H' for this message." +
+                "</color></b>";
 
             for (int i = 0; i < m_statusText.Length - 1; i++)
                 m_statusText[i] = "";
@@ -547,9 +265,8 @@ namespace ConnectionTester
 
         protected void Update()
         {
-            // Check for screen resize
-            if (m_lastScreenHeight != Screen.height || m_lastScreenWidth != Screen.width)
-                OnScreenResize();
+            // GUI drawn based on current window size
+            CheckForScreenResize();
 
             // Nothing to update if we haven't subscribed yet
             if (m_subscribed)
@@ -567,6 +284,7 @@ namespace ConnectionTester
                 // Dequeue all new measurements and apply values to lines
                 while (m_dataQueue.TryDequeue(out IList<Measurement> measurements))
                 {
+                    // ReSharper disable once ForCanBeConvertedToForeach
                     for (int i = 0; i < measurements.Count; i++)
                     {
                         Measurement measurement = measurements[i];
@@ -583,27 +301,11 @@ namespace ConnectionTester
 
             long currentTicks = DateTime.UtcNow.Ticks;
 
+            // Check for hot key updates no faster than every 200 milliseconds
             if (currentTicks - m_lastKeyCheck > TimeSpan.TicksPerMillisecond * 200)
             {
-                int orgGuiSize = m_guiSize;
-
-                // Plus / Minus keys will increase / decrease font size
-                if (Input.GetKey(KeyCode.Plus) || Input.GetKey(KeyCode.KeypadPlus) || Input.GetKey(KeyCode.Equals) && m_shiftIsDown)
-                    m_guiSize++;
-                else if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus))
-                    m_guiSize--;
-
-                if (m_guiSize < MinGuiSize)
-                    m_guiSize = MinGuiSize;
-
-                if (m_guiSize > MaxGuiSize)
-                    m_guiSize = MaxGuiSize;
-
-                if (m_guiSize != orgGuiSize)
-                {
-                    m_lastKeyCheck = currentTicks;
-                    OnScreenResize();
-                }
+                // Plus / Minus keys will increase / decrease GUI font size
+                CheckForFontSizeHotKeys(currentTicks);
 
                 // F1 key will launch help page
                 if (Input.GetKey(KeyCode.F1))
@@ -657,265 +359,6 @@ namespace ConnectionTester
                 EndApplication();
         }
 
-        private void OnGUI()
-        {
-            Rect controlWindowLocation = m_controlWindowMinimized ? m_controlWindowMinimizedLocation : m_controlWindowActiveLocation;
-            Event e = Event.current;
-
-            GUI.skin = UISkin;
-            GUIStyle windowStyle = new GUIStyle(GUI.skin.window);
-            windowStyle.normal.background = m_controlWindowTexture;
-            windowStyle.onNormal = windowStyle.normal;
-            windowStyle.richText = true;
-
-            // Adjust font size for window title for larger GUI sizes
-            if (m_guiSize > 1)
-                windowStyle.fontSize = 11 * m_guiSize;
-
-            bool mouseOverWindowTitle;
-
-            if (m_controlWindowMinimized)
-            {
-                mouseOverWindowTitle = controlWindowLocation.Contains(e.mousePosition);
-            }
-            else
-            {
-                Rect controlWindowTitleLocation = new Rect(controlWindowLocation.x, controlWindowLocation.y, controlWindowLocation.width, Screen.height - m_controlWindowMinimizedLocation.y);
-                mouseOverWindowTitle = controlWindowTitleLocation.Contains(e.mousePosition);
-            }
-
-            string controlWindowTitle = $"<b>[</b> <color=yellow>Subscription Controls</color> <b>]</b>{(mouseOverWindowTitle ? $" - <i>Click to {(m_controlWindowMinimized ? "Expand" : "Minimize")}</i>" : "")}";
-
-            // Create subscription control window
-            GUILayout.Window(0, controlWindowLocation, DrawControlsWindow, controlWindowTitle, windowStyle, GUILayout.MaxWidth(Screen.width));
-
-            // Handle click events to show/hide control window
-            if (!(LinkCursor is null))
-            {
-                if (mouseOverWindowTitle)
-                    Cursor.SetCursor(LinkCursor, Vector2.zero, CursorMode.Auto);
-                else if (m_lastMouseOverWindow)
-                    Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
-            }
-
-            m_lastMouseOverWindow = mouseOverWindowTitle;
-
-            if (e.isMouse && Input.GetMouseButtonUp(0))
-            {
-                if (mouseOverWindowTitle)
-                {
-                    // If mouse is over control window title during click, show or hide control window
-                    if (m_controlWindowMinimized)
-                    {
-                        m_controlWindowMinimized = false;
-                        Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
-                    }
-                    else
-                    {
-                        m_controlWindowMinimized = true;
-                    }
-                }
-                else if (!controlWindowLocation.Contains(e.mousePosition))
-                {
-                    // If user clicks on main window, minimize control window
-                    m_controlWindowMinimized = true;
-                }
-            }
-
-            m_shiftIsDown = e.shift;
-
-            // Mouse based camera orbit is disabled while control window is active
-            if (!(m_mouseOrbitScript is null))
-                m_mouseOrbitScript.IsActive = m_controlWindowMinimized;
-
-            // Make sure no text boxes have focus when control window is minimized
-            // so any hot keys do not get added to active text fields
-            if (m_controlWindowMinimized)
-                GUI.FocusControl(null);
-
-            // Add a close application button on the main screen, this is handy
-            // on mobile deployments where hitting ESC button is not so easy
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-            buttonStyle.fontSize = 12 * m_guiSize;
-            int size = 20 * m_guiSize;
-
-            if (GUI.Button(new Rect(Screen.width - size, 0, size, size), "X", buttonStyle))
-                EndApplication();
-
-            GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
-            versionLabelStyle.fontSize = 11 * m_guiSize;
-            versionLabelStyle.alignment = TextAnchor.UpperLeft;
-            versionLabelStyle.richText = true;
-            GUILayout.Label($"<color=yellow>v{m_version}</color>", versionLabelStyle);
-        }
-
-        private void DrawControlsWindow(int windowID)
-        {
-            float widthScalar = 1.0F;
-
-            GUIStyle horizontalScrollbarStyle = null;
-            GUIStyle verticalScrollbarStyle = null;
-            GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
-            GUIStyle textFieldStyle = new GUIStyle(GUI.skin.textField);
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-            GUIStyle sliderStyle = new GUIStyle(GUI.skin.horizontalSlider);
-            GUIStyle sliderThumbStyle = new GUIStyle(GUI.skin.horizontalSliderThumb);
-
-            // Handle larger sizes for GUI elements
-            if (m_guiSize > 1)
-            {
-                Dictionary<string, GUIStyle> customStyles = GUI.skin.customStyles.ToDictionary(style => style.name, StringComparer.OrdinalIgnoreCase);
-
-                horizontalScrollbarStyle = new GUIStyle(GUI.skin.horizontalScrollbar) { name = "sizedhorizontal" };
-                GUIStyle horizontalScrollbarThumbStyle = new GUIStyle(GUI.skin.horizontalScrollbarThumb) { name = "sizedhorizontalthumb" };
-                GUIStyle horizontalScrollbarLeftButtonStyle = new GUIStyle(GUI.skin.horizontalScrollbarLeftButton) { name = "sizedhorizontalleftbutton" };
-                GUIStyle horizontalScrollbarRightButtonStyle = new GUIStyle(GUI.skin.horizontalScrollbarRightButton) { name = "sizedhorizontalrightbutton" };
-
-                customStyles[horizontalScrollbarStyle.name] = horizontalScrollbarStyle;
-                customStyles[horizontalScrollbarThumbStyle.name] = horizontalScrollbarThumbStyle;
-                customStyles[horizontalScrollbarLeftButtonStyle.name] = horizontalScrollbarLeftButtonStyle;
-                customStyles[horizontalScrollbarRightButtonStyle.name] = horizontalScrollbarRightButtonStyle;
-
-                verticalScrollbarStyle = new GUIStyle(GUI.skin.verticalScrollbar) { name = "sizedvertical" };
-                GUIStyle verticalScrollbarThumbStyle = new GUIStyle(GUI.skin.verticalScrollbarThumb) { name = "sizedverticalthumb" };
-                GUIStyle verticalScrollbarUpButtonStyle = new GUIStyle(GUI.skin.verticalScrollbarUpButton) { name = "sizedverticalupbutton" };
-                GUIStyle verticalScrollbarDownButtonStyle = new GUIStyle(GUI.skin.verticalScrollbarDownButton) { name = "sizedverticaldownbutton" };
-
-                customStyles[verticalScrollbarStyle.name] = verticalScrollbarStyle;
-                customStyles[verticalScrollbarThumbStyle.name] = verticalScrollbarThumbStyle;
-                customStyles[verticalScrollbarUpButtonStyle.name] = verticalScrollbarUpButtonStyle;
-                customStyles[verticalScrollbarDownButtonStyle.name] = verticalScrollbarDownButtonStyle;
-
-                GUI.skin.customStyles = customStyles.Values.ToArray();
-
-                horizontalScrollbarStyle.fixedHeight *= m_guiSize * 0.75F;
-                horizontalScrollbarThumbStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
-                horizontalScrollbarLeftButtonStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
-                horizontalScrollbarRightButtonStyle.fixedHeight = horizontalScrollbarStyle.fixedHeight;
-
-                verticalScrollbarStyle.fixedWidth *= m_guiSize * 0.75F;
-                verticalScrollbarThumbStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
-                verticalScrollbarUpButtonStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
-                verticalScrollbarDownButtonStyle.fixedWidth = verticalScrollbarStyle.fixedWidth;
-
-                // This work was non-deterministic - should be a better way...
-                labelStyle.fontSize = 11 * m_guiSize;
-                textFieldStyle.fontSize = 11 * m_guiSize;
-                buttonStyle.fontSize = 11 * m_guiSize;
-                sliderStyle.fixedHeight *= m_guiSize;
-                sliderThumbStyle.fixedHeight *= m_guiSize;
-                sliderThumbStyle.padding.right *= m_guiSize;
-
-                widthScalar = m_guiSize * 0.85F;
-            }
-
-            // Adjust vertical alignment for slider control for better vertical centering
-            sliderStyle.margin.top += 5;
-            sliderThumbStyle.padding.top += 5;
-
-            // Text field contents will auto-stretch control window beyond screen extent,
-            // so we add automatic scroll bars to the region in case things expand
-            m_scrollPosition = m_guiSize > 1 ? 
-                GUILayout.BeginScrollView(m_scrollPosition, horizontalScrollbarStyle, verticalScrollbarStyle) :
-                GUILayout.BeginScrollView(m_scrollPosition);
-            
-            GUILayout.BeginVertical();
-
-            // Add some vertical padding with a blank row for larger GUI sizes (optional Row 0)
-            GUIStyle blankLabelStyle = new GUIStyle(GUI.skin.label);
-
-            if (m_guiSize > 1)
-            {
-                blankLabelStyle.fontSize = 6;
-
-                for (int i = 1; i < m_guiSize; i++)
-                {
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("", blankLabelStyle);
-                    GUILayout.EndHorizontal();
-                }
-            }
-
-            // Row 1 - server connection string
-            GUILayout.BeginHorizontal();
-
-            GUILayout.Label(" Connection String:", labelStyle, GUILayout.Width(112 * widthScalar));
-            ConnectionString = GUILayout.TextField(ConnectionString, textFieldStyle);
-
-            // Reconnect using new connection string
-            if (GUILayout.Button("Connect", buttonStyle, GUILayout.Width(100 * widthScalar)))
-                InitiateConnection();
-
-            GUILayout.EndHorizontal();
-
-            // Row 2 - filter expression
-            GUILayout.BeginHorizontal();
-
-            GUILayout.Label(" Filter Expression:", labelStyle, GUILayout.Width(108 * widthScalar));
-            FilterExpression = GUILayout.TextField(FilterExpression, textFieldStyle);
-
-            // Resubscribe using new filter expression
-            if (GUILayout.Button("Update", buttonStyle, GUILayout.Width(100 * widthScalar)))
-                InitiateSubscription();
-
-            GUILayout.EndHorizontal();
-
-            // Row 3 - historical query
-            GUILayout.BeginHorizontal();
-
-            GUILayout.Label(" Start Time:", labelStyle, GUILayout.Width(70 * widthScalar));
-            m_startTime = GUILayout.TextField(m_startTime, textFieldStyle);
-
-            GUILayout.Label(" Stop Time:", labelStyle, GUILayout.Width(70 * widthScalar));
-            m_stopTime = GUILayout.TextField(m_stopTime, textFieldStyle);
-
-            GUILayout.Label("Process Interval:", labelStyle, GUILayout.Width(100 * widthScalar));
-            m_processInterval = (int)GUILayout.HorizontalSlider((float)m_processInterval, 0.0F, 300.0F, sliderStyle, sliderThumbStyle, GUILayout.Width(125 * widthScalar));
-
-            // Dynamically update processing interval when user moves slider control
-            if (m_subscribed && m_processInterval != m_lastProcessInterval)
-            {
-                if (m_lastProcessInterval > 0)
-                {
-                    m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-                    UpdateStatus($"Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")}...");
-                }
-
-                m_lastProcessInterval = m_processInterval;
-            }
-
-            // Resubscribe with historical replay parameters
-            if (GUILayout.Button("Replay", buttonStyle, GUILayout.Width(100 * widthScalar)))
-                InitiateSubscription(true);
-
-            GUILayout.EndHorizontal();
-
-            // Add some vertical padding for larger font sizes with a blank row as separator for INI file path that follows
-            if (m_guiSize > 1)
-            {
-                blankLabelStyle.fontSize = 1 + (m_guiSize - 1) * 2;
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("", blankLabelStyle);
-                GUILayout.EndHorizontal();
-            }
-
-            // Row 4 - INI file path
-            GUILayout.BeginHorizontal();
-
-            GUIStyle iniLabelStyle = new GUIStyle(GUI.skin.label);
-            iniLabelStyle.fontSize = 10 + (m_guiSize > 1 ? m_guiSize * (m_guiSize > 2 ? 3 : 1): 0);
-            iniLabelStyle.fontStyle = FontStyle.Italic;
-            iniLabelStyle.alignment = TextAnchor.UpperCenter;
-
-            GUILayout.Label($" Settings File = \"{Application.persistentDataPath}/{IniFileName}\" - Resolution = {Screen.width} x {Screen.height} - Build Date = {m_buildDate}", iniLabelStyle);
-
-            GUILayout.EndHorizontal();
-
-            GUILayout.EndVertical();
-            GUILayout.EndScrollView();
-        }
-
         internal void InitializeSubscription(Guid[] subscribedMeasurementIDs)
         {
             int count = subscribedMeasurementIDs.Length;
@@ -950,8 +393,16 @@ namespace ConnectionTester
                     cumulativeStatusText.AppendLine(m_statusText[i]);
                 }
 
-                // Append newest status text
+                // Wrap long lines
                 statusText = string.Join(Environment.NewLine, statusText.GetSegments(95));
+                
+                // Add color highlighting to warnnings and errors
+                if (statusText.StartsWith("WARNING:", StringComparison.OrdinalIgnoreCase))
+                    statusText = $"<color=yellow>{statusText}</color>";
+                else if (statusText.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                    statusText = $"<color=red>{statusText}</color>";
+
+                // Append newest status text
                 m_statusText[m_statusText.Length - 1] = statusText;
                 cumulativeStatusText.Append(statusText);
             }
@@ -973,7 +424,7 @@ namespace ConnectionTester
         }
 
         // Hide status text after a period of no updates
-        private void m_hideStatusTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void HideStatusTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             if (!m_shuttingDown && !(StatusMesh is null))
                 StatusMesh.UpdateText("");
@@ -1030,6 +481,7 @@ namespace ConnectionTester
             ThreadPool.QueueUserWorkItem(UpdateLegend, subscribedMeasurementIDs);
         }
 
+        // TODO: Create "tool-tip" that wil show current value
         private void UpdateLegend(object state)
         {
             if (!(state is Guid[] subscribedMeasurementIDs))
@@ -1060,11 +512,9 @@ namespace ConnectionTester
             // Create a legend line for each subscribed point
             m_legendLines.Clear();
 
+            // Lines must be created on the UI thread
             foreach (Guid measurementID in subscribedMeasurementIDs)
-            {
-                // Lines must be created on the UI thread
                 UIThread.Invoke(CreateLegendLine, measurementID);
-            }
         }
 
         // Create a new legend line
@@ -1089,7 +539,7 @@ namespace ConnectionTester
             TerminateConnection();
 
             // Attempt to extract server name from connection string
-            Dictionary<string, string> settings = ConnectionString?.ParseKeyValuePairs();
+            Dictionary<string, string> settings = m_connectionString?.ParseKeyValuePairs();
 
             if (settings is null || !settings.TryGetValue("server", out string server) || string.IsNullOrEmpty(server))
             {
@@ -1119,11 +569,16 @@ namespace ConnectionTester
             // would request that the data publisher send data to the subscriber over
             // UDP on port 9191. Technically this is part of the subscription info but
             // we allow this definition in the connection string for this application.
-
             if (settings.TryGetValue("dataChannel", out string dataChannel) && !string.IsNullOrWhiteSpace(dataChannel))
                 ushort.TryParse(dataChannel, out udpPort);
 
             UpdateStatus($"Attempting connection to \"{hostname}:{port}\"{(udpPort > 0 ? $" with UDP data channel on port \"{udpPort}\"" : "")}...");
+
+            // Check if user has requested to not use payload compression in the connection string
+            m_subscriber.PayloadDataCompressed = !settings.TryGetValue("compression", out string setting) || !bool.TryParse(setting, out bool value) || value;
+
+            if (udpPort > 0 && settings.ContainsKey("compression") && m_subscriber.PayloadDataCompressed)
+                UpdateStatus("WARNING: Requested compression with UDP payload ignored.");
 
             InitiateSubscription();
 
@@ -1139,7 +594,7 @@ namespace ConnectionTester
                 ClearSubscription();
 
             m_historicalSubscription = historical;
-            m_subscriber.FilterExpression = FilterExpression;
+            m_subscriber.FilterExpression = m_filterExpression;
 
             if (!historical)
                 return;
@@ -1165,33 +620,20 @@ namespace ConnectionTester
             ClearSubscription();
         }
 
-        private void OnScreenResize()
-        {
-            m_lastScreenHeight = Screen.height;
-            m_lastScreenWidth = Screen.width;
-
-            // Make control window size adjustments for larger GUI sizes
-            float heightScalar = m_guiSize > 1 ? m_guiSize * (m_guiSize > 2 ? 0.75F : 0.83F) : 1.0F;
-            int heighOffset = (m_guiSize - 1) * 12;
-
-            m_controlWindowActiveLocation = new Rect(0, Screen.height - ControlWindowActiveHeight * heightScalar, Screen.width, ControlWindowActiveHeight * heightScalar);
-            m_controlWindowMinimizedLocation = new Rect(0, Screen.height - (ControlWindowMinimizedHeight + heighOffset), Screen.width, ControlWindowActiveHeight * heightScalar);
-        }
-
-        private void EraseLine(object[] args)
-        {
-            if (args is null || args.Length < 1)
-                return;
-
-            if (!(args[0] is ILine line))
-                return;
-
-            line.Stop();
-        }
-
         // Clears an existing subscription
         internal void ClearSubscription()
         {
+            void eraseLine(object[] args)
+            {
+                if (args is null || args.Length < 1)
+                    return;
+
+                if (!(args[0] is ILine line))
+                    return;
+
+                line.Stop();
+            }
+
             m_subscribed = false;
 
             // Reset subscription state
@@ -1204,7 +646,7 @@ namespace ConnectionTester
             if (m_dataLines?.Count > 0)
             {
                 foreach (DataLine dataLine in m_dataLines.Values)
-                    UIThread.Invoke(EraseLine, dataLine);
+                    UIThread.Invoke(eraseLine, dataLine);
 
                 m_dataLines.Clear();
             }
@@ -1213,7 +655,7 @@ namespace ConnectionTester
             if (m_legendLines?.Count > 0)
             {
                 foreach (LegendLine legendLine in m_legendLines)
-                    UIThread.Invoke(EraseLine, legendLine);
+                    UIThread.Invoke(eraseLine, legendLine);
 
                 m_legendLines.Clear();
             }
@@ -1245,7 +687,7 @@ namespace ConnectionTester
 
             if (!(m_hideStatusTimer is null))
             {
-                m_hideStatusTimer.Elapsed -= m_hideStatusTimer_Elapsed;
+                m_hideStatusTimer.Elapsed -= HideStatusTimer_Elapsed;
                 m_hideStatusTimer.Dispose();
             }
 
@@ -1260,36 +702,10 @@ namespace ConnectionTester
 
         protected void OnApplicationQuit()
         {
-            // Load existing INI file settings
-            IniFile iniFile = new IniFile($"{Application.persistentDataPath}/{IniFileName}");
+            // Save any user updated settings
+            SaveSettings();
 
-            // Apply any user updated settings to INI file. Note that semi-colons are
-            // treated as comments in INI files so we suffix connection string with a
-            // semi-colon since this string can contain valid semi-colons - only the
-            // last one will be treated as a comment prefix and removed at load.
-            iniFile["Settings", "ConnectionString"] = $"{ConnectionString} ;"; // See note below *
-            iniFile["Settings", "FilterExpression"] = FilterExpression;
-            iniFile["Settings", "StartTime"] = m_startTime;
-            iniFile["Settings", "StopTime"] = m_stopTime;
-            iniFile["Settings", "GuiSize"] = m_guiSize.ToString();
-
-            // * Trailing semi-colon is intentational. Since optional connection string parameters
-            // will be separated by semi-colon and INI files treat trailing semi-colons as comment 
-            // markers, the connection string will always need a semi-colon at the end of the line
-            // when serialized to prevent removal of optional connection string parameters on load.
-
-            // Attempt to save INI file updates
-            try
-            {
-                iniFile.Save();
-            }
-            catch (Exception ex)
-            {
-            #if UNITY_EDITOR
-                Debug.Log($"ERROR: {ex.Message}");
-            #endif
-            }
-
+            // Dispose of data subscriber
             m_subscriber?.Dispose();
         }
 

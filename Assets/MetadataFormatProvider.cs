@@ -1,7 +1,7 @@
-﻿//******************************************************************************************************
-//  Common.cs - Gbtc
+//******************************************************************************************************
+//  MetadataFormatProvider.cs - Gbtc
 //
-//  Copyright © 2019, Grid Protection Alliance.  All Rights Reserved.
+//  Copyright � 2021, Grid Protection Alliance.  All Rights Reserved.
 //
 //  Licensed to the Grid Protection Alliance (GPA) under one or more contributor license agreements. See
 //  the NOTICE file distributed with this work for additional information regarding copyright ownership.
@@ -16,23 +16,35 @@
 //
 //  Code Modification History:
 //  ----------------------------------------------------------------------------------------------------
-//  12/24/2020 - J. Ritchie Carroll
+//  01/01/2021 - J. Ritchie Carroll
 //       Generated original version of source code.
 //
 //******************************************************************************************************
 
-using System.Linq;
-using System.Reflection;
+using System;
+using sttp;
 
 // ReSharper disable CheckNamespace
 namespace ConnectionTester
 {
-    public static class Common
+    // Exposes Metadata record in a string.Format expression
+    public class MetadataFormatProvider : IFormattable
     {
-        public static string GetMetadataValue(this Assembly assembly, string keyName) => 
-            assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(metadata => metadata.Key.Equals(keyName))?.Value;
+        private readonly MeasurementMetadata m_metadata;
+        private readonly string m_signalTypeAcronym;
 
-        public static string GetTargetName() => 
-            typeof(GraphLines).Assembly.GetMetadataValue("TargetName");
+        public MetadataFormatProvider(MeasurementMetadata metadata, string signalTypeAcronym)
+        {
+            m_metadata = metadata;
+            m_signalTypeAcronym = signalTypeAcronym;
+        }
+
+        public string ToString(string propertyName, IFormatProvider provider)
+        {
+            if (propertyName.Equals("SignalTypeAcronym", StringComparison.OrdinalIgnoreCase))
+                return m_signalTypeAcronym;
+
+            return typeof(MeasurementMetadata).GetProperty(propertyName)?.GetValue(m_metadata).ToString() ?? $"<{propertyName}>";
+        }
     }
 }

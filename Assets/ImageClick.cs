@@ -25,7 +25,6 @@ using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// ReSharper disable InconsistentNaming
 // ReSharper disable once CheckNamespace
 namespace UnityGSF
 {
