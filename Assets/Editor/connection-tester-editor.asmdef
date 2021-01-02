@@ -1,7 +1,8 @@
 {
     "name": "connection-tester-editor",
     "references": [
-        "connection-tester"
+        "connection-tester",
+        "Unity.TextMeshPro"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"
