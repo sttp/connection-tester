@@ -269,17 +269,23 @@ namespace ConnectionTester
 
             // Add a close application button on the main screen, this is handy
             // on mobile deployments where hitting ESC button is not so easy
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-            buttonStyle.fontSize = 12 * m_guiFontSize;
+            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 12 * m_guiFontSize
+            };
+
             int size = 20 * m_guiFontSize;
 
             if (GUI.Button(new Rect(Screen.width - size, 0, size, size), "X", buttonStyle))
                 EndApplication();
 
-            GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label);
-            versionLabelStyle.fontSize = 11 * m_guiFontSize;
-            versionLabelStyle.alignment = TextAnchor.UpperLeft;
-            versionLabelStyle.richText = true;
+            GUIStyle versionLabelStyle = new GUIStyle(GUI.skin.label) 
+            {
+                fontSize = 11 * m_guiFontSize,
+                alignment = TextAnchor.UpperLeft,
+                richText = true
+            };
+            
             GUILayout.Label($"<color=yellow>v{m_version}</color>", versionLabelStyle);
         }
 
@@ -437,10 +443,12 @@ namespace ConnectionTester
             // Row 4 - INI file path
             GUILayout.BeginHorizontal();
 
-            GUIStyle iniLabelStyle = new GUIStyle(GUI.skin.label);
-            iniLabelStyle.fontSize = 10 + (m_guiFontSize > 1 ? m_guiFontSize * (m_guiFontSize > 2 ? 3 : 1) : 0);
-            iniLabelStyle.fontStyle = FontStyle.Italic;
-            iniLabelStyle.alignment = TextAnchor.UpperCenter;
+            GUIStyle iniLabelStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 10 + (m_guiFontSize > 1 ? m_guiFontSize * (m_guiFontSize > 2 ? 3 : 1) : 0),
+                fontStyle = FontStyle.Italic,
+                alignment = TextAnchor.UpperCenter
+            };
 
             GUILayout.Label($" Settings File = \"{Application.persistentDataPath}/{IniFileName}\" - Resolution = {Screen.width} x {Screen.height} - Build Date = {m_buildDate}", iniLabelStyle);
 
