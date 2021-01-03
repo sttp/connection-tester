@@ -131,9 +131,7 @@ namespace ConnectionTester
         {
             Transform drawTransform = m_legendMesh.transform;
 
-            // Define a line with five points that represents a border rectangle, that is:
-            // top-left (0), top-right (1), bottom-right (2), bottom-left (3) and back to top-left (4)
-            m_border = new VectorLine("LegendBorderLine", new List<Vector3>(5), ParentScript.LineMaterial, BorderWidth, LineType.Continuous)
+            m_border = new VectorLine("LegendBorderLine", new List<Vector3>(2), ParentScript.LineMaterial, BorderWidth, LineType.Continuous)
             {
                 color = BorderColor,
                 drawTransform = drawTransform,
@@ -172,16 +170,7 @@ namespace ConnectionTester
             bottomLeft.z = borderZ;
             topRight.z = borderZ;
 
-            Vector3 topLeft = new Vector3(bottomLeft.x, topRight.y, borderZ);
-            Vector3 bottomRight = new Vector3(topRight.x, bottomLeft.y, borderZ);
-
-            // Set coordinates for each line of border square
-            m_border.points3[0] = topLeft;
-            m_border.points3[1] = topRight;
-            m_border.points3[2] = bottomRight;
-            m_border.points3[3] = bottomLeft;
-            m_border.points3[4] = topLeft;
-
+            m_border.MakeRoundedRect(bottomLeft, topRight, 0.3F, 3);
             m_border.active = true;
         }
 
