@@ -96,7 +96,7 @@ namespace ConnectionTester
             if (!bool.TryParse(iniFile["Settings", "ArrowScrollsTarget", DefaultArrowScrollsTarget], out m_mouseOrbitScript.ArrowScrollsTarget))
                 m_mouseOrbitScript.ArrowScrollsTarget = DefaultArrowScrollsTarget;
 
-                // Validate deserialized GUI size
+            // Validate deserialized GUI size
             if (m_guiFontSize < MinGuiFontSize)
                 m_guiFontSize = MinGuiFontSize;
 
@@ -104,11 +104,20 @@ namespace ConnectionTester
                 m_guiFontSize = MaxGuiFontSize;
 
             Title = iniFile["Settings", "Title", DefaultTitle];
-            LineWidth = int.Parse(iniFile["Settings", "LineWidth", DefaultLineWidth.ToString()]);
-            LineDepthOffset = float.Parse(iniFile["Settings", "LineDepthOffset", DefaultLineDepthOffset.ToString(CultureInfo.InvariantCulture)]);
-            PointsInLine = int.Parse(iniFile["Settings", "PointsInLine", DefaultPointsInLine.ToString()]);
+
+            if (!int.TryParse(iniFile["Settings", "LineWidth", DefaultLineWidth], out LineWidth))
+                LineWidth = DefaultLineWidth;
+
+            if (!float.TryParse(iniFile["Settings", "LineDepthOffset", DefaultLineDepthOffset.ToString(CultureInfo.InvariantCulture)], out LineDepthOffset))
+                LineDepthOffset = DefaultLineDepthOffset;
+
+            if (!int.TryParse(iniFile["Settings", "PointsInLine", DefaultPointsInLine], out PointsInLine))
+                PointsInLine = DefaultPointsInLine;
+
             LegendFormat = iniFile["Settings", "LegendFormat", DefaultLegendFormat];
-            StatusDisplayInterval = double.Parse(iniFile["Settings", "StatusDisplayInterval", DefaultStatusDisplayInterval.ToString(CultureInfo.InvariantCulture)]);
+
+            if (!double.TryParse(iniFile["Settings", "StatusDisplayInterval", DefaultStatusDisplayInterval.ToString(CultureInfo.InvariantCulture)], out StatusDisplayInterval))
+                StatusDisplayInterval = DefaultStatusDisplayInterval;
 
             // TODO: Add setting to control "left-to-right" line fill
 
