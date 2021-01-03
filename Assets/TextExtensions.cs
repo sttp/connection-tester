@@ -65,7 +65,7 @@ namespace UnityGSF
                     target.ForceMeshUpdate();
                     Bounds bounds = target.textBounds;
                     collider.offset = bounds.center;
-                    collider.size = new Vector3(bounds.size.x, bounds.size.y, 1);
+                    collider.size = new Vector3(bounds.size.x + 1.0F, bounds.size.y + 1.0F, bounds.size.z);
                 }
             }
 
