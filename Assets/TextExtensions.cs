@@ -24,6 +24,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using TMPro;
 using UnityEngine;
 
 // ReSharper disable once CheckNamespace
@@ -37,17 +38,39 @@ namespace UnityGSF
         /// </summary>
         /// <param name="mesh">The text mesh to update.</param>
         /// <param name="text">The new text to apply to the mesh.</param>
-        public static void UpdateText(this TextMesh mesh, string text) => 
-            UIThread.Invoke(UpdateText, mesh, text);
-
-        // Text updates must occur on main UI thread
-        private static void UpdateText(object[] args)
+        public static void UpdateText(this TextMesh mesh, string text)
         {
-            if (args is null || args.Length < 2)
-                return;
+            void updateTextHandler(object[] args) =>
+                ((TextMesh)args[0]).text = args[1] as string;
 
-            if (args[0] is TextMesh mesh && args[1] is string text)
-                mesh.text = text;
+            // Text updates must occur on main UI thread
+            UIThread.Invoke(updateTextHandler, mesh, text);
+        }
+
+        /// <summary>
+        /// Updates the text of a TextMeshPro object, even from a non-UI thread.
+        /// </summary>
+        /// <param name="mesh">The text mesh pro to update.</param>
+        /// <param name="text">The new text to apply to the mesh.</param>
+        public static void UpdateText(this TextMeshPro mesh, string text)
+        {
+            void updateTextHandler(object[] args)
+            {
+                TextMeshPro target = (TextMeshPro)args[0];
+                target.text = args[1] as string;
+
+                // Auto resize any associated collider after text has been updated
+                if (!string.IsNullOrWhiteSpace(target.text) && target.TryGetComponent<BoxCollider2D>(out BoxCollider2D collider))
+                {
+                    target.ForceMeshUpdate();
+                    Bounds bounds = target.textBounds;
+                    collider.offset = bounds.center;
+                    collider.size = new Vector3(bounds.size.x, bounds.size.y, 1);
+                }
+            }
+
+            // Text updates must occur on main UI thread
+            UIThread.Invoke(updateTextHandler, mesh, text);
         }
 
         /// <summary>
