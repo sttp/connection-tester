@@ -25,7 +25,7 @@ using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// ReSharper disable once CheckNamespace
+// ReSharper disable CheckNamespace
 namespace UnityGSF
 {
     public class ImageClick : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler

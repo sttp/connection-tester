@@ -34,6 +34,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Timers;
+using TMPro;
 using UnityEngine;
 using UnityGSF;
 using Vectrosity;
@@ -73,7 +74,7 @@ namespace ConnectionTester
 
         // Constants
         public const string DefaultConnectionString = "server=localhost:7165;";
-        public const string DefaultFilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE 'VPH*'";
+        public const string DefaultFilterExpression = "FILTER TOP 10 ActiveMeasurements WHERE SignalType='FREQ' OR SignalType LIKE '%PHM'";
         public const string DefaultStartTime = "*-5M";
         public const string DefaultStopTime = "*";
         public const int DefaultMaxSignals = 30;
@@ -96,7 +97,6 @@ namespace ConnectionTester
         private ConcurrentDictionary<string, Scale> m_scales;
         private ConcurrentDictionary<Guid, DataLine> m_dataLines;
         private ConcurrentQueue<IList<Measurement>> m_dataQueue;
-        private List<LegendLine> m_legendLines;
         private string[] m_statusText;
         private Timer m_hideStatusTimer;
         private MouseOrbit m_mouseOrbitScript;
@@ -127,7 +127,9 @@ namespace ConnectionTester
         // The following fields are assigned in Unity editor and are used to associate scene objects with GraphLines script,
         // note that the GraphLines script instance is currently associated with the "Main Camera" scene object
         public Transform Target;
-        public TextMesh LegendMesh;
+        public TextMeshPro LegendMesh;
+        public TextMeshPro DisplayValueMesh;
+        public Guid TargetMeasurementID;
         public TextMesh StatusMesh;
         public Texture LineMaterial;
         public GUISkin UISkin;
@@ -165,7 +167,7 @@ namespace ConnectionTester
 
             // Update subscriber info to include information that source is STTP connection tester
             m_subscriber.GetAssemblyInfo(out string source, out string version, out string updatedOn);
-            source = $"STTP Connection Tester version {m_version} updated on {m_buildDate}, using STTP library {source}";
+            source = $"{DefaultTitle} version {m_version} updated on {m_buildDate}, using STTP library {source}";
             m_subscriber.SetAssemblyInfo(source, version, updatedOn);
         }
 
@@ -187,7 +189,6 @@ namespace ConnectionTester
             m_scales = new ConcurrentDictionary<string, Scale>();
             m_dataLines = new ConcurrentDictionary<Guid, DataLine>();
             m_dataQueue = new ConcurrentQueue<IList<Measurement>>();
-            m_legendLines = new List<LegendLine>();
 
             // Initialize status rows and timer to hide status after a period of no updates
             m_statusText = new string[m_statusRows];
@@ -226,7 +227,7 @@ namespace ConnectionTester
                 GameObject legendObject = GameObject.Find("Legend");
 
                 if (!(legendObject is null))
-                    LegendMesh = legendObject.GetComponent<TextMesh>();
+                    LegendMesh = legendObject.GetComponent<TextMeshPro>();
             }
 
             // If 3D text status mesh property was not defined, attempt to look it up by name
@@ -288,9 +289,13 @@ namespace ConnectionTester
                     for (int i = 0; i < measurements.Count; i++)
                     {
                         Measurement measurement = measurements[i];
+                        Guid measurementID = measurement.GetSignalID();
 
-                        if (m_dataLines.TryGetValue(measurement.GetSignalID(), out DataLine line))
+                        if (m_dataLines.TryGetValue(measurementID, out DataLine line))
                             line.UpdateValue((float)measurement.Value);
+
+                        if (measurementID == TargetMeasurementID && !(DisplayValueMesh is null))
+                            DisplayValueMesh.UpdateText($"Value: {measurement.Value:N3} @ {measurement.GetDateTime():yyyy-MM-dd HH:mm:ss.fff}");
                     }
                 }
 
@@ -374,7 +379,8 @@ namespace ConnectionTester
             m_linesInitializedWaitHandle = UIThread.Invoke(CreateDataLines, subscribedMeasurementIDs);
         }
 
-        internal void EnqueData(IList<Measurement> measurements) => m_dataQueue.Enqueue(measurements);
+        internal void EnqueData(IList<Measurement> measurements) => 
+            m_dataQueue.Enqueue(measurements);
 
         internal void UpdateStatus(string statusText, int displayInterval = 0)
         {
@@ -481,7 +487,6 @@ namespace ConnectionTester
             ThreadPool.QueueUserWorkItem(UpdateLegend, subscribedMeasurementIDs);
         }
 
-        // TODO: Create "tool-tip" that wil show current value
         private void UpdateLegend(object state)
         {
             if (!(state is Guid[] subscribedMeasurementIDs))
@@ -501,33 +506,24 @@ namespace ConnectionTester
                 if (string.IsNullOrWhiteSpace(signalType))
                     signalType = "UNST"; // Unknown signal type
 
-                // Add formatted metadata label expression to legend text
-                legendText.AppendFormat(LegendFormat, new MetadataFormatProvider(metadata, signalType));
-                legendText.AppendLine();
+                if (m_dataLines.TryGetValue(measurementID, out DataLine dataLine))
+                {
+                    // Surround legend line with link tagged with measurement ID so hover can display value
+                    legendText.Append($"<link=\"{measurementID}\">");
+
+                    // Add a "dash" with matching graph data line color for reference // <line-height=99%>
+                    legendText.Append($"<color=#{ColorUtility.ToHtmlStringRGB(dataLine.VectorColor)}><b><size=+7><voffset=-0.07em>—</voffset></size></b></color><space=0.2em>");
+                    
+                    // Add formatted metadata label expression to legend text
+                    legendText.AppendFormat(LegendFormat, new MetadataFormatProvider(metadata, signalType));
+                    
+                    // Close link and start new line
+                    legendText.AppendLine("</link>");
+                }
             }
 
             // Update text for 3D text labels object with subscribed point tag names
             LegendMesh.UpdateText(legendText.ToString());
-
-            // Create a legend line for each subscribed point
-            m_legendLines.Clear();
-
-            // Lines must be created on the UI thread
-            foreach (Guid measurementID in subscribedMeasurementIDs)
-                UIThread.Invoke(CreateLegendLine, measurementID);
-        }
-
-        // Create a new legend line
-        private void CreateLegendLine(object[] args)
-        {
-            if (args is null || args.Length < 1)
-                return;
-
-            Guid id = (Guid)args[0];
-
-            // Attempt to look up associated data line (for line color)
-            if (m_dataLines.TryGetValue(id, out DataLine dataLine))
-                m_legendLines.Add(new LegendLine(this, id, m_legendLines.Count, dataLine.VectorColor));
         }
 
         // Connects or reconnects to a data publisher
@@ -623,16 +619,8 @@ namespace ConnectionTester
         // Clears an existing subscription
         internal void ClearSubscription()
         {
-            void eraseLine(object[] args)
-            {
-                if (args is null || args.Length < 1)
-                    return;
-
-                if (!(args[0] is ILine line))
-                    return;
-
-                line.Stop();
-            }
+            void eraseLine(object[] args) => 
+                ((ILine)args[0]).Stop();
 
             m_subscribed = false;
 
@@ -649,15 +637,6 @@ namespace ConnectionTester
                     UIThread.Invoke(eraseLine, dataLine);
 
                 m_dataLines.Clear();
-            }
-
-            // Erase legend lines
-            if (m_legendLines?.Count > 0)
-            {
-                foreach (LegendLine legendLine in m_legendLines)
-                    UIThread.Invoke(eraseLine, legendLine);
-
-                m_legendLines.Clear();
             }
 
             // Clear legend text
