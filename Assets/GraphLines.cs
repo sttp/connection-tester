@@ -179,11 +179,11 @@ namespace ConnectionTester
 
         protected void Awake()
         {
-            // Load previous settings from INI file
-            LoadSettings();
-
             // Attempt to reference active mouse orbit script
             m_mouseOrbitScript = GetComponent<MouseOrbit>();
+
+            // Load previous settings from INI file
+            LoadSettings();
 
             // Create line dictionary and data queue
             m_scales = new ConcurrentDictionary<string, Scale>();

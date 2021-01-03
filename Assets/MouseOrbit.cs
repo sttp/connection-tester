@@ -43,6 +43,7 @@ namespace UnityGSF
         public float ArrowSpeed = 0.15F;
         public bool IsActive = true;
         public bool Restore;
+        public bool ArrowScrollsTarget = false;
 
         private float m_xOffset;
         private float m_yOffset;
@@ -183,23 +184,23 @@ namespace UnityGSF
             // Handle X/Y camera offset movement based on arrow keys
             if (Input.GetKey(KeyCode.RightArrow))
             {
-                m_xOffset -= ArrowSpeed;
+                m_xOffset += (ArrowScrollsTarget ? -1 : 1) * ArrowSpeed;
                 Restore = false;
             }
             else if (Input.GetKey(KeyCode.LeftArrow))
             {
-                m_xOffset += ArrowSpeed;
+                m_xOffset += (ArrowScrollsTarget ? 1 : -1) * ArrowSpeed;
                 Restore = false;
             }
 
             if (Input.GetKey(KeyCode.UpArrow))
             {
-                m_yOffset -= ArrowSpeed;
+                m_yOffset += (ArrowScrollsTarget ? -1 : 1) * ArrowSpeed;
                 Restore = false;
             }
             else if (Input.GetKey(KeyCode.DownArrow))
             {
-                m_yOffset += ArrowSpeed;
+                m_yOffset += (ArrowScrollsTarget ? 1 : -1) * ArrowSpeed;
                 Restore = false;
             }
 

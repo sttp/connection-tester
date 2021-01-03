@@ -45,6 +45,7 @@ namespace ConnectionTester
         private const int MinGuiFontSize = 1;
         private const int MaxGuiFontSize = 3;
         private const int DefaultGuiFontSize = 2;
+        private const bool DefaultArrowScrollsTarget = false;
 
         // Fields
         private string m_userINIPath;
@@ -79,12 +80,23 @@ namespace ConnectionTester
             m_filterExpression = iniFile["Settings", "FilterExpression", DefaultFilterExpression];
             m_startTime = iniFile["Settings", "StartTime", DefaultStartTime];
             m_stopTime = iniFile["Settings", "StopTime", DefaultStopTime];
-            m_maxSignals = int.Parse(iniFile["Settings", "MaxSignals", DefaultMaxSignals.ToString()]);
-            m_autoInitiateConnection = bool.Parse(iniFile["Settings", "AutoInitiateConnection", DefaultAutoInitiateConnection.ToString()]);
-            m_statusRows = int.Parse(iniFile["Settings", "StatusRows", DefaultStatusRows.ToString()]);
-            m_guiFontSize = int.Parse(iniFile["Settings", "GuiSize", DefaultGuiFontSize.ToString()]);
 
-            // Validate deserialized GUI size
+            if (!int.TryParse(iniFile["Settings", "MaxSignals", DefaultMaxSignals], out m_maxSignals))
+                m_maxSignals = DefaultMaxSignals;
+
+            if (!bool.TryParse(iniFile["Settings", "AutoInitiateConnection", DefaultAutoInitiateConnection], out m_autoInitiateConnection))
+                m_autoInitiateConnection = DefaultAutoInitiateConnection;
+
+            if (!int.TryParse(iniFile["Settings", "StatusRows", DefaultStatusRows], out m_statusRows))
+                m_statusRows = DefaultStatusRows;
+
+            if (!int.TryParse(iniFile["Settings", "GuiSize", DefaultGuiFontSize], out m_guiFontSize))
+                m_guiFontSize = DefaultGuiFontSize;
+
+            if (!bool.TryParse(iniFile["Settings", "ArrowScrollsTarget", DefaultArrowScrollsTarget], out m_mouseOrbitScript.ArrowScrollsTarget))
+                m_mouseOrbitScript.ArrowScrollsTarget = DefaultArrowScrollsTarget;
+
+                // Validate deserialized GUI size
             if (m_guiFontSize < MinGuiFontSize)
                 m_guiFontSize = MinGuiFontSize;
 

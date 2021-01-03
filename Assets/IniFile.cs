@@ -75,6 +75,15 @@ namespace UnityGSF
             }
         }
 
+        public string this[string sectionName, string entryName, object defaultValue]
+        {
+            get
+            {
+                ConcurrentDictionary<string, string> section = m_iniData.GetOrAdd(sectionName, CreateNewSection);
+                return section.GetOrAdd(entryName, defaultValue?.ToString() ?? string.Empty);
+            }
+        }
+
         #endregion
 
         #region [ Methods ]
