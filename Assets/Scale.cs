@@ -107,6 +107,7 @@ namespace ConnectionTester
         {
             foreach (DataLine line in m_lines)
             {
+                // Apply line scaling
                 for (int x = 0; x < line.UnscaledData.Length; x++)
                 {
                     float unscaledValue = line.UnscaledData[x];
@@ -114,10 +115,10 @@ namespace ConnectionTester
                     if (float.IsNaN(unscaledValue))
                         unscaledValue = MidPoint;
 
-                    Vector3 point = line.LinePoints[x];
-                    point.z = -ScaleValue(unscaledValue);
-                    line.LinePoints[x] = point;
+                    line.LinePoints[x].z = -ScaleValue(unscaledValue);
                 }
+
+                line.Draw();
             }
         }
 

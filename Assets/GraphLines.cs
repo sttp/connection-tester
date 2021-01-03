@@ -85,6 +85,10 @@ namespace ConnectionTester
         public const int DefaultLineWidth = 4;
         public const float DefaultLineDepthOffset = 0.75F;
         public const int DefaultPointsInLine = 50;
+        public const bool DefaultPointsScrollRight = true;
+        public const bool DefaultUseSplineGraph = false;
+        public const int DefaultSplineSegmentFactor = 3;
+        public const bool DefaultGraphPoints = false;
         public const float DefaultGraphScale = 5.0F;
         public const double DefaultStatusDisplayInterval = 10000.0D;
         public const string DefaultLegendFormat = "{0:SignalTypeAcronym}: {0:Description} [{0:PointTag}]";
@@ -140,6 +144,10 @@ namespace ConnectionTester
         public int LineWidth = DefaultLineWidth;
         public float LineDepthOffset = DefaultLineDepthOffset;
         public int PointsInLine = DefaultPointsInLine;
+        public bool PointsScrollRight = DefaultPointsScrollRight;
+        public bool UseSplineGraph = DefaultUseSplineGraph;
+        public int SplineSegmentFactor = DefaultSplineSegmentFactor;
+        public bool GraphPoints = DefaultGraphPoints;
         public float GraphScale = DefaultGraphScale;
         public double StatusDisplayInterval = DefaultStatusDisplayInterval;
         public string LegendFormat = DefaultLegendFormat;

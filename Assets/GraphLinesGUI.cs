@@ -90,11 +90,39 @@ namespace ConnectionTester
             if (!int.TryParse(iniFile["Settings", "StatusRows", DefaultStatusRows], out m_statusRows))
                 m_statusRows = DefaultStatusRows;
 
+            Title = iniFile["Settings", nameof(Title), DefaultTitle];
+
+            if (!int.TryParse(iniFile["Settings", nameof(LineWidth), DefaultLineWidth], out LineWidth))
+                LineWidth = DefaultLineWidth;
+
+            if (!float.TryParse(iniFile["Settings", nameof(LineDepthOffset), DefaultLineDepthOffset.ToString(CultureInfo.InvariantCulture)], out LineDepthOffset))
+                LineDepthOffset = DefaultLineDepthOffset;
+
+            if (!int.TryParse(iniFile["Settings", nameof(PointsInLine), DefaultPointsInLine], out PointsInLine))
+                PointsInLine = DefaultPointsInLine;
+
+            if (!double.TryParse(iniFile["Settings", nameof(StatusDisplayInterval), DefaultStatusDisplayInterval.ToString(CultureInfo.InvariantCulture)], out StatusDisplayInterval))
+                StatusDisplayInterval = DefaultStatusDisplayInterval;
+
+            LegendFormat = iniFile["Settings", nameof(LegendFormat), DefaultLegendFormat];
+
             if (!int.TryParse(iniFile["Settings", "GuiSize", DefaultGuiFontSize], out m_guiFontSize))
                 m_guiFontSize = DefaultGuiFontSize;
 
-            if (!bool.TryParse(iniFile["Settings", "ArrowScrollsTarget", DefaultArrowScrollsTarget], out m_mouseOrbitScript.ArrowScrollsTarget))
+            if (!bool.TryParse(iniFile["Settings", nameof(MouseOrbit.ArrowScrollsTarget), DefaultArrowScrollsTarget], out m_mouseOrbitScript.ArrowScrollsTarget))
                 m_mouseOrbitScript.ArrowScrollsTarget = DefaultArrowScrollsTarget;
+
+            if (!bool.TryParse(iniFile["Settings", nameof(PointsScrollRight), DefaultPointsScrollRight], out PointsScrollRight))
+                PointsScrollRight = DefaultPointsScrollRight;
+
+            if (!bool.TryParse(iniFile["Settings", nameof(UseSplineGraph), DefaultUseSplineGraph], out UseSplineGraph))
+                UseSplineGraph = DefaultUseSplineGraph;
+
+            if (!int.TryParse(iniFile["Settings", nameof(SplineSegmentFactor), DefaultSplineSegmentFactor], out SplineSegmentFactor))
+                SplineSegmentFactor = DefaultSplineSegmentFactor;
+
+            if (!bool.TryParse(iniFile["Settings", nameof(GraphPoints), DefaultGraphPoints], out GraphPoints))
+                GraphPoints = DefaultGraphPoints;
 
             // Validate deserialized GUI size
             if (m_guiFontSize < MinGuiFontSize)
@@ -102,24 +130,6 @@ namespace ConnectionTester
 
             if (m_guiFontSize > MaxGuiFontSize)
                 m_guiFontSize = MaxGuiFontSize;
-
-            Title = iniFile["Settings", "Title", DefaultTitle];
-
-            if (!int.TryParse(iniFile["Settings", "LineWidth", DefaultLineWidth], out LineWidth))
-                LineWidth = DefaultLineWidth;
-
-            if (!float.TryParse(iniFile["Settings", "LineDepthOffset", DefaultLineDepthOffset.ToString(CultureInfo.InvariantCulture)], out LineDepthOffset))
-                LineDepthOffset = DefaultLineDepthOffset;
-
-            if (!int.TryParse(iniFile["Settings", "PointsInLine", DefaultPointsInLine], out PointsInLine))
-                PointsInLine = DefaultPointsInLine;
-
-            LegendFormat = iniFile["Settings", "LegendFormat", DefaultLegendFormat];
-
-            if (!double.TryParse(iniFile["Settings", "StatusDisplayInterval", DefaultStatusDisplayInterval.ToString(CultureInfo.InvariantCulture)], out StatusDisplayInterval))
-                StatusDisplayInterval = DefaultStatusDisplayInterval;
-
-            // TODO: Add setting to control "left-to-right" line fill
 
             // Attempt to save INI file updates (e.g., to restore any missing settings)
             try
@@ -150,15 +160,15 @@ namespace ConnectionTester
         // Called from Unity OnApplicationQuit event handler
         private void SaveSettings()
         {
-            // Load existing INI file settings
-            IniFile iniFile = new IniFile(m_userINIPath ?? $"{Application.persistentDataPath}/{IniFileName}");
-
             // Save any user updated settings to INI file
-            iniFile["Settings", "ConnectionString"] = $"{m_connectionString};"; // See note below *
-            iniFile["Settings", "FilterExpression"] = m_filterExpression;
-            iniFile["Settings", "StartTime"] = m_startTime;
-            iniFile["Settings", "StopTime"] = m_stopTime;
-            iniFile["Settings", "GuiSize"] = m_guiFontSize.ToString();
+            IniFile iniFile = new IniFile(m_userINIPath ?? $"{Application.persistentDataPath}/{IniFileName}")
+            {
+                ["Settings", "ConnectionString"] = $"{m_connectionString};", // See note below *
+                ["Settings", "FilterExpression"] = m_filterExpression,
+                ["Settings", "StartTime"] = m_startTime,
+                ["Settings", "StopTime"] = m_stopTime,
+                ["Settings", "GuiSize"] = m_guiFontSize.ToString()
+            };
 
             // * Trailing semi-colon is intentational. Since optional connection string parameters
             // will be separated by semi-colon and INI files treat trailing semi-colons as comment 

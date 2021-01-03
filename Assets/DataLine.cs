@@ -32,15 +32,35 @@ namespace ConnectionTester
     // Creates a dynamically scaled 3D line using Vectrosity asset to draw line for data
     public class DataLine : ILine
     {
+        private GraphLines m_parent;
         private VectorLine m_vector;
+        private readonly int m_segmentCount;
 
         public DataLine(GraphLines parent, Guid id, int index)
         {
             ID = id;
             Index = index;
-            UnscaledData = new float[parent.PointsInLine];
+            LinePoints = new Vector3[parent.PointsInLine];
+            UnscaledData = new float[LinePoints.Length];
 
-            m_vector = new VectorLine($"DataLine{index}", new List<Vector3>(parent.PointsInLine), parent.LineMaterial, parent.LineWidth, LineType.Continuous)
+            int vectorCapacity;
+            
+            if (parent.UseSplineGraph)
+            {
+                int segmentFactor = parent.SplineSegmentFactor;
+
+                if (segmentFactor < 1)
+                    segmentFactor = 1;
+
+                m_segmentCount = LinePoints.Length * segmentFactor;
+                vectorCapacity = m_segmentCount + 1;
+            }
+            else
+            {
+                vectorCapacity = LinePoints.Length;
+            }
+
+            m_vector = new VectorLine($"DataLine{index}", new List<Vector3>(vectorCapacity), parent.LineMaterial, parent.LineWidth, parent.GraphPoints ? LineType.Points : LineType.Continuous)
             {
                 color = parent.LineColors[index % parent.LineColors.Length],
                 drawTransform = parent.Target
@@ -48,11 +68,15 @@ namespace ConnectionTester
 
             m_vector.Draw3DAuto();
 
-            for (int x = 0; x < m_vector.points3.Count; x++)
+            float zOffset = -((index + 1) * parent.LineDepthOffset + 0.05F);
+
+            for (int x = 0; x < LinePoints.Length; x++)
             {
                 UnscaledData[x] = float.NaN;
-                m_vector.points3[x] = new Vector3(Mathf.Lerp(-5.0F, 5.0F, x / (float)m_vector.points3.Count), -((index + 1) * parent.LineDepthOffset + 0.05F), 0.0F);
+                LinePoints[x] = new Vector3(Mathf.Lerp(-5.0F, 5.0F, x / (float)LinePoints.Length), zOffset, 0.0F); // y and z axes intentionally transposed
             }
+
+            m_parent = parent;
         }
 
         public Guid ID { get; }
@@ -67,7 +91,20 @@ namespace ConnectionTester
 
         public float[] UnscaledData { get; }
 
-        public List<Vector3> LinePoints => m_vector.points3;
+        public Vector3[] LinePoints { get; }
+
+        public void Draw()
+        {
+            if (m_parent.UseSplineGraph)
+            {
+                m_vector.MakeSpline(LinePoints, m_segmentCount);
+            }
+            else
+            {
+                for (int i = 0; i < LinePoints.Length; i++)
+                    m_vector.points3[i] = LinePoints[i];
+            }
+        }
 
         public void Stop()
         {
@@ -76,15 +113,26 @@ namespace ConnectionTester
 
             m_vector.StopDrawing3DAuto();
             VectorLine.Destroy(ref m_vector);
+
+            m_parent = null;
         }
 
         public void UpdateValue(float newValue)
         {
             int x;
 
-            // Move y position of all points to the left by one
-            for (x = 0; x < m_vector.points3.Count - 1; x++)
-                UnscaledData[x] = UnscaledData[x + 1];
+            if (m_parent.PointsScrollRight)
+            {
+                // Move y position of all points to the right by one
+                for (x = LinePoints.Length - 1; x > 0; x--)
+                    UnscaledData[x] = UnscaledData[x - 1];
+            }
+            else
+            {
+                // Move y position of all points to the left by one
+                for (x = 0; x < LinePoints.Length - 1; x++)
+                    UnscaledData[x] = UnscaledData[x + 1];
+            }
 
             UnscaledData[x] = newValue;
         }
