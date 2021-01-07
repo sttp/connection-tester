@@ -46,7 +46,7 @@ namespace ConnectionTester
         public GraphLines ParentScript; // GraphLines controls text to display, this script controls location and visibility
         public Image Container;         // Image which represents value tool-tip background, basically a text mesh container
         public Color BorderColor = Color.yellow;
-        public int BorderWidth = 6;
+        public int BorderWidth = 3;
         public int OrderInLayer = 1;
 
         protected void Awake()
@@ -170,7 +170,7 @@ namespace ConnectionTester
             bottomLeft.z = borderZ;
             topRight.z = borderZ;
 
-            m_border.MakeRoundedRect(bottomLeft, topRight, 0.3F, 3);
+            m_border.MakeRoundedRect(bottomLeft, topRight, 0.35F, 2);
             m_border.active = true;
         }
 
