@@ -50,9 +50,9 @@ Note that hot keys may only work when [Subscription Controls](#subscription-cont
 |  `+`  | Increase Font Size              |       1.0.3       |
 |  `-`  | Decrease Font Size              |       1.0.3       |
 |  `R`  | Restore Default Graph Location  |       1.0.5       |
-|  `M`  | Toggle Status Message Display   |       1.0.5       |
 |  `S`  | Toggle Drawing Splines or Lines |       1.0.5       |
 |  `P`  | Toggle Drawing Points or Lines  |       1.0.5       |
+|  `M`  | Toggle Status Message Display   |       1.0.5       |
 |  `H`  | Display Hotkey Help Message     |       1.0.5       |
 
 ## Settings File

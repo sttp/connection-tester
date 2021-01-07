@@ -30,7 +30,7 @@ namespace UnityGSF
     public class MouseOrbit : MonoBehaviour
     {
         public Transform Target;
-        public float Distance = 50.0F;
+        public float Distance = 55.0F;
         public float MaxDistance = 1000.0F;
         public float MinDistance = 0.3F;
         public float XSpeed = 300.0F;
