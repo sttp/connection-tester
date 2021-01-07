@@ -45,7 +45,7 @@ namespace ConnectionTester
 {
     public partial class GraphLines : MonoBehaviour
     {
-        #region [ Static ]
+    #region [ Static ]
 
         private static Action s_editorExitingPlayMode;
 
@@ -56,10 +56,12 @@ namespace ConnectionTester
             string currentPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Process);
             string pluginPath = Path.Combine(Path.GetFullPath("."), $"{Common.GetTargetName()}_Data", "Plugins");
 
+        #if UNITY_STANDALONE_WIN
             if (IntPtr.Size == 8)
                 pluginPath = Path.Combine(pluginPath, "x86_64");
             else
                 pluginPath = Path.Combine(pluginPath, "x86");
+        #endif
 
             if (!currentPath?.Contains(pluginPath) ?? false)
                 Environment.SetEnvironmentVariable("PATH", $"{currentPath}{Path.PathSeparator}{pluginPath}", EnvironmentVariableTarget.Process);
@@ -68,9 +70,9 @@ namespace ConnectionTester
 
         public static void EditorExitingPlayMode() => s_editorExitingPlayMode?.Invoke();
 
-        #endregion
+    #endregion
 
-        #region [ Members ]
+    #region [ Members ]
 
         // Constants
         public const string DefaultConnectionString = "server=localhost:7165;";
@@ -138,7 +140,7 @@ namespace ConnectionTester
         public Texture LineMaterial;
         public GUISkin UISkin;
         public Texture2D LinkCursor;
-        
+
         // The following fields are used to tweak run-time behavior while debugging from within Unity editor
         public string Title = DefaultTitle;
         public int LineWidth = DefaultLineWidth;
@@ -153,9 +155,9 @@ namespace ConnectionTester
         public string LegendFormat = DefaultLegendFormat;
         public Color[] LineColors = DefaultLineColors;
 
-        #endregion
+    #endregion
 
-        #region [ Constructors ]
+    #region [ Constructors ]
 
         public GraphLines()
         {
@@ -179,9 +181,9 @@ namespace ConnectionTester
             m_subscriber.SetAssemblyInfo(source, version, updatedOn);
         }
 
-        #endregion
+    #endregion
 
-        #region [ Methods ]
+    #region [ Methods ]
 
         // Unity Event Handlers
 
@@ -209,7 +211,7 @@ namespace ConnectionTester
                 AutoReset = false,
                 Interval = StatusDisplayInterval
             };
-            
+
             m_hideStatusTimer.Elapsed += HideStatusTimer_Elapsed;
 
             VectorLine.SetCanvasCamera(Camera.main);
@@ -262,6 +264,8 @@ namespace ConnectionTester
                 "Press '+' to increase font size, or '-' to decrease.\r\n" +
                 "Press 'C' to connect, 'D' to disconnect.\r\n" +
                 "Press 'R' to restore default graph location.\r\n" +
+                "Press 'S' to toggle drawing splines or lines.\r\n" +
+                "Press 'P' to toggle drawing points or lines.\r\n" +
                 "Press 'M' to toggle status message display.\r\n" +
                 "Press 'F1' for help page, or 'H' for this message." +
                 "</color></b>";
@@ -348,6 +352,22 @@ namespace ConnectionTester
                     m_mouseOrbitScript.Restore = true;
                 }
 
+                // Toggle drawing splines or lines with "S" key
+                if (Input.GetKey(KeyCode.S))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    UseSplineGraph = !UseSplineGraph;
+                    InitiateSubscription();
+                }
+
+                // Toggle drawing points or lines with "P" key
+                if (Input.GetKey(KeyCode.P))
+                {
+                    m_lastKeyCheck = currentTicks;
+                    GraphPoints = !GraphPoints;
+                    InitiateSubscription();
+                }
+
                 // Toggle message display with "M" key
                 if (Input.GetKey(KeyCode.M))
                 {
@@ -387,7 +407,7 @@ namespace ConnectionTester
             m_linesInitializedWaitHandle = UIThread.Invoke(CreateDataLines, subscribedMeasurementIDs);
         }
 
-        internal void EnqueData(IList<Measurement> measurements) => 
+        internal void EnqueData(IList<Measurement> measurements) =>
             m_dataQueue.Enqueue(measurements);
 
         internal void UpdateStatus(string statusText, int displayInterval = 0)
@@ -409,7 +429,7 @@ namespace ConnectionTester
 
                 // Wrap long lines
                 statusText = string.Join(Environment.NewLine, statusText.GetSegments(95));
-                
+
                 // Add color highlighting to warnnings and errors
                 if (statusText.StartsWith("WARNING:", StringComparison.OrdinalIgnoreCase))
                     statusText = $"<color=yellow>{statusText}</color>";
@@ -521,10 +541,10 @@ namespace ConnectionTester
 
                     // Add a "dash" with matching graph data line color for reference // <line-height=99%>
                     legendText.Append($"<color=#{ColorUtility.ToHtmlStringRGB(dataLine.VectorColor)}><b><size=+7><voffset=-0.07em>—</voffset></size></b></color><space=0.2em>");
-                    
+
                     // Add formatted metadata label expression to legend text
                     legendText.AppendFormat(LegendFormat, new MetadataFormatProvider(metadata, signalType));
-                    
+
                     // Close link and start new line
                     legendText.AppendLine("</link>");
                 }
@@ -599,6 +619,7 @@ namespace ConnectionTester
 
             m_historicalSubscription = historical;
             m_subscriber.FilterExpression = m_filterExpression;
+            m_controlWindowMinimized = !historical;
 
             if (!historical)
                 return;
@@ -606,7 +627,7 @@ namespace ConnectionTester
             m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
             m_subscriber.SetHistoricalReplayInterval(m_processInterval);
             m_lastProcessInterval = m_processInterval;
-            
+
             UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
         }
 
@@ -627,7 +648,7 @@ namespace ConnectionTester
         // Clears an existing subscription
         internal void ClearSubscription()
         {
-            void eraseLine(object[] args) => 
+            void eraseLine(object[] args) =>
                 ((ILine)args[0]).Stop();
 
             m_subscribed = false;
@@ -696,6 +717,6 @@ namespace ConnectionTester
             m_subscriber?.Dispose();
         }
 
-        #endregion
+    #endregion
     }
 }

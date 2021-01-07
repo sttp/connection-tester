@@ -167,7 +167,9 @@ namespace ConnectionTester
                 ["Settings", "FilterExpression"] = m_filterExpression,
                 ["Settings", "StartTime"] = m_startTime,
                 ["Settings", "StopTime"] = m_stopTime,
-                ["Settings", "GuiSize"] = m_guiFontSize.ToString()
+                ["Settings", "GuiSize"] = m_guiFontSize.ToString(),
+                ["Settings", nameof(UseSplineGraph)] = UseSplineGraph.ToString(),
+                ["Settings", nameof(GraphPoints)] = GraphPoints.ToString()
             };
 
             // * Trailing semi-colon is intentational. Since optional connection string parameters
@@ -237,18 +239,10 @@ namespace ConnectionTester
             if (m_guiFontSize > 1)
                 windowStyle.fontSize = 11 * m_guiFontSize;
 
-            bool mouseOverWindowTitle;
-
-            if (m_controlWindowMinimized)
-            {
-                mouseOverWindowTitle = controlWindowLocation.Contains(e.mousePosition);
-            }
-            else
-            {
-                Rect controlWindowTitleLocation = new Rect(controlWindowLocation.x, controlWindowLocation.y, controlWindowLocation.width, Screen.height - m_controlWindowMinimizedLocation.y);
-                mouseOverWindowTitle = controlWindowTitleLocation.Contains(e.mousePosition);
-            }
-
+            // Reduce area of clickable show/hide control window to roughly over text
+            float linkArea = Screen.width / 3.0F;
+            Rect controlWindowTitleLocation = new Rect(controlWindowLocation.x + linkArea, controlWindowLocation.y, linkArea, Screen.height - m_controlWindowMinimizedLocation.y);
+            bool mouseOverWindowTitle = controlWindowTitleLocation.Contains(e.mousePosition);
             string controlWindowTitle = $"<b>[</b> <color=yellow>Subscription Controls</color> <b>]</b>{(mouseOverWindowTitle ? $" - <i>Click to {(m_controlWindowMinimized ? "Expand" : "Minimize")}</i>" : "")}";
 
             // Create subscription control window
