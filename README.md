@@ -9,4 +9,4 @@ This application is a simple graphical program that uses the STTP API to display
 [Download](https://github.com/sttp/connection-tester/releases)
  / [Documentation](Docs)
 
-![Screen Shot](docs/ScreenShot.png)
+![Screen Shot](Docs/ScreenShot.png)
