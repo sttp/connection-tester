@@ -10,7 +10,7 @@ The following table details the functionality of the controls:
 
 | UI Control | Function |
 | :--------: | :------- |
-| `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on. If you would like to receive data values back on UDP, you can add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to the end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`. |
+| `Connection String`<br/>Text Box | Defines the connection string parameters used to connect to an STTP data publisher. The format is `server=hostname:port` where `hostname` can be the DNS name or IP of the publisher. The `port` is the STTP TCP/IP port the data publisher is listening on.<br/><br/>To receive data values back on UDP, add a `dataChannel` setting to connection string. For example, adding `;dataChannel=9191` to the end of the connection string would request data values flow back to the STTP Connection Tester on port `9191`.<br/><br>TSSC compression is enabled by default. To disable compression and use compact measurement format, add `;compression=false` to the end of the connection string. |
 | `Connect`<br/>Button | Attempts a connection to the STTP data publisher defined in the `Connection String`. |
 | `Filter Expression`<br/>Text Box | Defines an expression used select the desired signals to trend. This syntax is similar to a SQL clause, but does not implement the full SQL language, see [STTP Filter Expressions](https://github.com/sttp/cppapi/blob/master/doc/FilterExpressions.md) documentation. |
 | `Update`<br/>Button | Updates the active subscription with changes specified in the `Filter Expression`. |
@@ -25,14 +25,14 @@ Relative time intervals are parsed based on an offset to current time in UTC spe
 
 The value can be specified in one of the following formats:
 
-| Time Format	| Example | Description |
-| :---------: | :-----: | :---------: |
-| `yyyy-mm-dd HH:MM:ss.fff` | `2020-12-30 23:59:59.033` | Absolute date and time in UTC. |
-| `*` | `*` |	Evaluates to current time, i.e., _now_. |
-| `*-Ns` | `*-20s` | Evaluates to `N` seconds before _now_ |
-| `*-Nm` | `*-10m` |	Evaluates to `N` minutes before _now_.
-| `*-Nh` | `*-3h` |	Evaluates to `N` hours before _now_. |
-| `*-Nd` | `*-1d` |	Evaluates to `N` days before _now_. |
+|        Time Format	      |          Example          | Description                             |
+| :-----------------------: | :-----------------------: | :-------------------------------------- |
+| `yyyy-mm-dd HH:MM:ss.fff` | `2020-12-30 23:59:59.033` | Absolute date and time in UTC.          |
+|             `*`           |            `*`            | Evaluates to current time, i.e., _now_. |
+|           `*-Ns`          |          `*-20s`          | Evaluates to `N` seconds before _now_.  |
+|           `*-Nm`          |          `*-10m`          | Evaluates to `N` minutes before _now_.  |
+|           `*-Nh`          |          `*-3h`           | Evaluates to `N` hours before _now_.    |
+|           `*-Nd`          |          `*-1d`           | Evaluates to `N` days before _now_.     |
 
 Note that positive values are also supported, for example,
 `*+2d` would evaluate to 2 days from _now_. Future values keep a historical subscription active into the future so long as the data publisher and active replay rate support the time frame.
@@ -41,14 +41,19 @@ Note that positive values are also supported, for example,
 
 Note that hot keys may only work when [Subscription Controls](#subscription-controls) dialog is minimized.
 
-|  Key  | Action              | Version Available |
-| :---: | :------------------ | :---------------: |
-| `ESC` | Exit Application    |       1.0.0       |
-| `F1`  | Open Help Page      |       1.0.3       |
-|  `C`  | Connect / Reconnect |       1.0.3       |
-|  `D`  | Disconnect          |       1.0.3       |
-|  `+`  | Increase Font Size  |       1.0.3       |
-|  `-`  | Decrease Font Size  |       1.0.3       |
+|  Key  | Action                          | Version Available |
+| :---: | :------------------------------ | :---------------: |
+| `ESC` | Exit Application                |       1.0.0       |
+|  `F1` | Open Help Page                  |       1.0.3       |
+|  `C`  | Connect / Reconnect             |       1.0.3       |
+|  `D`  | Disconnect                      |       1.0.3       |
+|  `+`  | Increase Font Size              |       1.0.3       |
+|  `-`  | Decrease Font Size              |       1.0.3       |
+|  `R`  | Restore Default Graph Location  |       1.0.5       |
+|  `M`  | Toggle Status Message Display   |       1.0.5       |
+|  `S`  | Toggle Drawing Splines or Lines |       1.0.5       |
+|  `P`  | Toggle Drawing Points or Lines  |       1.0.5       |
+|  `H`  | Display Hotkey Help Message     |       1.0.5       |
 
 ## Settings File
 
@@ -74,7 +79,12 @@ The settings are defined as follows:
 | `PointsInLine` | `50` | Number of points to display per trend line. |
 | `ConnectionString` | `server=localhost:7165;` | Last UI defined connection string. |
 | `StatusDisplayInterval` | `10000` | Maximum time, in milliseconds, that status updates will remain visible.
-| `StatusRows` | `4` | Maximum number of rows that will be maintained for status updates. |
+| `StatusRows` | `10` | Maximum number of rows that will be maintained for status updates. |
 | `LineWidth` | `4` | Display width of trend lines. |
 | `LineDepthOffset` | `0.75` | Z-axis depth offset for multiple trend lines. |
-| `GuiSize` | `1` | Last UI defined font size factor for the text based GUI elements, e.g., subscriber controls. Valid values are from `1` to `3`.
+| `GuiSize` | `1` | Last UI defined font size factor for the text based GUI elements, e.g., subscriber controls. Valid values are from `1` to `3`. |
+| `ArrowScrollsTarget` | `False` | When value is `True`, arrow keys scroll the target plane; otherwise, arrow keys scroll the camera. |
+| `PointsScrollRight` | `True` | When value is `True`, points on graph scroll left-to-right; otherwise, points on graph scroll right-to-left. |
+| `UseSplineGraph` | `False` | When value is `True`, lines will be drawn with a spline; otherwise, lines will be direct drawn between points. |
+| `SplineSegmentFactor` | `3` | Number of curve segments to use per each spline between points. |
+| `GraphPoints` | `False` | When value is `True`, points will be drawn instead of lines. |
