@@ -1,3 +1,5 @@
+# Using STTP Connection Tester
+
 ## Subscription Controls
 
 The subscription controls dialog is used to define the parameters for the STTP connection. The dialog is normally minimized when the connection is active and only the title of the dialog is visible. To activate the dialog when it is minimized, click on the title.
