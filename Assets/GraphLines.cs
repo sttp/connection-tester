@@ -328,7 +328,7 @@ namespace ConnectionTester
                 if (Input.GetKey(KeyCode.F1))
                 {
                     m_lastKeyCheck = currentTicks;
-                    Process.Start("https://github.com/sttp/connection-tester/tree/master/Docs");
+                    Process.Start("https://sttp.github.io/connection-tester/");
                 }
 
                 // Connect with "C" key
