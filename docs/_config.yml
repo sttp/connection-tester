@@ -1,1 +1,9 @@
 theme: jekyll-theme-cayman
+title: STTP Connection Tester
+description: Streaming Telemetry Transport Protocol
+github:
+  repository_name: connection-tester
+  owner_url: https://www.gridprotectionalliance.org
+  owner_name: Grid Protection Alliance
+plugins:
+  - jemoji
