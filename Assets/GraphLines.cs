@@ -80,7 +80,7 @@ namespace ConnectionTester
         public const string DefaultStartTime = "*-5M";
         public const string DefaultStopTime = "*";
         public const int DefaultMaxSignals = 30;
-        public const int DefaultProcesssInterval = 33;
+        public const int DefaultProcesssInterval = 100;
         public const bool DefaultAutoInitiateConnection = false;
         public const int DefaultStatusRows = 10;
         public const string DefaultTitle = "STTP Connection Tester";
@@ -405,6 +405,10 @@ namespace ConnectionTester
             // Create a new line for each subscribed measurement, this should be done in
             // advance of updating the legend so the line colors will already be defined
             m_linesInitializedWaitHandle = UIThread.Invoke(CreateDataLines, subscribedMeasurementIDs);
+
+            // Set initial replay interval as soon as subscription is ready
+            if (m_historicalSubscription)
+                m_subscriber.SetHistoricalReplayInterval(m_processInterval);
         }
 
         internal void EnqueData(IList<Measurement> measurements) =>
@@ -555,7 +559,7 @@ namespace ConnectionTester
         }
 
         // Connects or reconnects to a data publisher
-        private void InitiateConnection()
+        private void InitiateConnection(bool historical = false)
         {
             m_connecting = true;
 
@@ -604,7 +608,7 @@ namespace ConnectionTester
             if (udpPort > 0 && settings.ContainsKey("compression") && m_subscriber.PayloadDataCompressed)
                 UpdateStatus("WARNING: Requested compression with UDP payload ignored.");
 
-            InitiateSubscription();
+            InitiateSubscription(historical);
 
             // Initialize subscriber
             m_subscriber.Initialize(hostname, port, udpPort);
@@ -614,28 +618,48 @@ namespace ConnectionTester
         // Subscribes or resubscribes to real-time or historical stream using current filter expression
         internal void InitiateSubscription(bool historical = false)
         {
-            if (m_subscribed || m_historicalSubscription)
+            if (historical && !(m_connecting || m_connected))
+            {
+                InitiateConnection(true);
+                return;
+            }
+
+            if (m_subscribed)
+            {
+                if (historical && !m_historicalSubscription)
+                {
+                    InitiateConnection(true);
+                    return;
+                }
+
                 ClearSubscription();
+            }
 
             m_historicalSubscription = historical;
-            m_subscriber.FilterExpression = m_filterExpression;
             m_controlWindowMinimized = !historical;
 
-            if (!historical)
-                return;
+            if (historical)
+            {
+                // Set historical replay parameters for a temporal connection
+                m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
+                UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
+            }
+            else
+            {
+                // Clear historical replay parameters for a real-time connection
+                m_subscriber.EstablishHistoricalRead(string.Empty, string.Empty);
+                UpdateStatus("Starting real-time subscription...");
+            }
 
-            m_subscriber.EstablishHistoricalRead(m_startTime, m_stopTime);
-            m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-            m_lastProcessInterval = m_processInterval;
-
-            UpdateStatus($"Starting historical replay at {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")} playback speed...");
+            // Updating filter expression invokes a resubscribe, if already subscribed
+            m_subscriber.FilterExpression = m_filterExpression;
         }
 
         internal void ConnectionEstablished()
         {
             m_connected = true;
             m_connecting = false;
-            m_controlWindowMinimized = true;
+            m_controlWindowMinimized = !m_historicalSubscription;
         }
 
         internal void ConnectionTerminated()

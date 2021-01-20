@@ -58,6 +58,7 @@ namespace ConnectionTester
         private int m_lastScreenWidth = -1;             // Last screen width (used to signal screen resize event)
         private bool m_lastMouseOverWindowTitle;        // Last mouse over control window title state (used to control link cursor)
         private int m_guiFontSize = DefaultGuiFontSize; // Current GUI font size of control window              
+        private long m_lastIntervalCheck;
 
         #endregion
 
@@ -421,7 +422,7 @@ namespace ConnectionTester
 
             // Resubscribe using new filter expression
             if (GUILayout.Button("Update", buttonStyle, GUILayout.Width(100 * widthScalar)))
-                InitiateSubscription();
+                InitiateSubscription(m_historicalSubscription);
 
             GUILayout.EndHorizontal();
 
@@ -440,13 +441,21 @@ namespace ConnectionTester
             // Dynamically update processing interval when user moves slider control
             if (m_subscribed && m_processInterval != m_lastProcessInterval)
             {
-                if (m_lastProcessInterval > 0)
-                {
-                    m_subscriber.SetHistoricalReplayInterval(m_processInterval);
-                    UpdateStatus($"Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")}...");
-                }
+                long currentTicks = DateTime.UtcNow.Ticks;
 
-                m_lastProcessInterval = m_processInterval;
+                // Update process interval changes no faster than every 500 milliseconds
+                if (currentTicks - m_lastIntervalCheck > TimeSpan.TicksPerMillisecond * 500)
+                {
+                    m_lastIntervalCheck = currentTicks;
+
+                    if (m_lastProcessInterval > 0)
+                    {
+                        m_subscriber.SetHistoricalReplayInterval(m_processInterval);
+                        UpdateStatus($"Changing historical replay speed to {(m_processInterval == 0 ? "fast as possible" : $"{m_processInterval}ms")}...");
+                    }
+
+                    m_lastProcessInterval = m_processInterval;
+                }
             }
 
             // Resubscribe with historical replay parameters

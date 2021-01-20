@@ -126,13 +126,8 @@ namespace ConnectionTester
         protected override void ConfigurationChanged() => 
             StatusMessage("Configuration change detected. Metadata refresh requested.");
 
-        protected override void HistoricalReadComplete()
-        {
-            StatusMessage("Historical data read complete. Restarting real-time subscription...");
-
-            // After processing of a historical query has completed, return to the real-time subscription
-            m_parent.InitiateSubscription();
-        }
+        protected override void HistoricalReadComplete() => 
+            StatusMessage("Historical data read complete.");
 
         protected override void ConnectionEstablished()
         {
