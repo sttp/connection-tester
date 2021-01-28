@@ -1,4 +1,4 @@
-![Logo](https://gridprotectionalliance.org/images/products/productTitles75/STTP_CTester.png)
+![Logo](https://gridprotectionalliance.org/images/products/productTitles75/STTP_ConTester.png)
 
 The STTP Connection Tester is used to validate that a subscription based connection is working as expected. It can also be used to validate filter expressions that can be used to select a set of points in hosted STTP publishers.
 
